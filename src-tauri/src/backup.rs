@@ -98,32 +98,175 @@ pub struct BackupManager;
 
 impl BackupManager {
     pub async fn run_backup(
-        _app: &AppHandle,
+        app: &AppHandle,
         serial: &str,
-        _categories: Vec<String>,
+        categories: Vec<String>,
         destination: &str,
     ) -> Result<BackupResult, String> {
+        use tauri::Emitter;
+
+        let mut categories_done = Vec::new();
+        let mut files_copied = 0usize;
+        let base = std::path::Path::new(destination).join(serial);
+
+        for id in &categories {
+            let Some(cat) = BackupCategory::all().into_iter().find(|c| c.id() == id) else {
+                continue;
+            };
+            let paths = category_to_device_paths(&cat);
+            let cat_dir = base.join(cat.id());
+            std::fs::create_dir_all(&cat_dir).map_err(|e| format!("Falha ao criar pasta de backup: {e}"))?;
+
+            let mut cat_files = 0usize;
+            let mut done = 0usize;
+            for remote in &paths {
+                if remote.starts_with("content://") {
+                    let out = AdbController::run_shell(app, serial, &["content", "query", "--uri", remote]).await;
+                    let file_name = format!("{}.txt", cat.id());
+                    let local = cat_dir.join(&file_name);
+                    Self::emit_progress(app, cat.id(), &file_name, done, paths.len());
+                    let data = match out {
+                        Ok(data) => data,
+                        Err(e) => {
+                            crate::commands::emit_log(app, "warn", &format!("Falha ao ler {remote}: {e}"));
+                            continue;
+                        }
+                    };
+                    std::fs::write(&local, data).map_err(|e| format!("Falha ao salvar {file_name}: {e}"))?;
+                    cat_files += 1;
+                    files_copied += 1;
+                    done += 1;
+                    crate::commands::emit_log(app, "info", &format!("Salvo {file_name}"));
+                    continue;
+                }
+
+                Self::emit_progress(app, cat.id(), remote, done, paths.len());
+                let count = AdbController::list_remote_dir(app, serial, remote).await.unwrap_or(0);
+                let output = AdbController::adb_pull(app, serial, remote, &cat_dir.to_string_lossy()).await;
+                match output {
+                    Ok(()) => {
+                        cat_files += count.max(1);
+                        files_copied += count.max(1);
+                        done += 1;
+                        crate::commands::emit_log(app, "ok", &format!("Categoria {} copiada.", cat.label()));
+                    }
+                    Err(e) => {
+                        crate::commands::emit_log(app, "warn", &format!("Categoria {} não copiada: {e}", cat.label()));
+                    }
+                }
+            }
+            categories_done.push(cat.id().to_string());
+            let _ = cat_files;
+        }
+
         Ok(BackupResult {
             serial: serial.to_string(),
-            destination: destination.to_string(),
-            categories_done: Vec::new(),
-            files_copied: 0,
-            message: "não implementado".to_string(),
+            destination: base.to_string_lossy().to_string(),
+            categories_done,
+            files_copied,
+            message: "Backup concluído".to_string(),
         })
     }
 
+    fn emit_progress(
+        app: &AppHandle,
+        category: &str,
+        file: &str,
+        files_done: usize,
+        total_files: usize,
+    ) {
+        use tauri::Emitter;
+        let percent = compute_percent(files_done, total_files);
+        let _ = app.emit(
+            "backup-progress",
+            BackupProgress {
+                category: category.to_string(),
+                file: file.to_string(),
+                files_done,
+                total_files,
+                percent,
+            },
+        );
+    }
+
     pub async fn restore(
-        _app: &AppHandle,
+        app: &AppHandle,
         serial: &str,
         destination: &str,
-        _categories: Vec<String>,
+        categories: Vec<String>,
     ) -> Result<BackupResult, String> {
+        let mut categories_done = Vec::new();
+        let mut files_copied = 0usize;
+        let base = std::path::Path::new(destination).join(serial);
+
+        for id in &categories {
+            let Some(cat) = BackupCategory::all().into_iter().find(|c| c.id() == id) else {
+                continue;
+            };
+            let cat_dir = base.join(cat.id());
+
+            match cat {
+                BackupCategory::Contacts => {
+                    let vcf = cat_dir.join("contacts.txt");
+                    if vcf.exists() {
+                        let out = AdbController::run_shell(
+                            app,
+                            serial,
+                            &["am", "start", "-a", "android.intent.action.VIEW", "-t", "text/x-vcard", "-d", "file:///sdcard/Download/contacts.vcf"],
+                        ).await;
+                        match out {
+                            Ok(_) => {
+                                crate::commands::emit_log(app, "ok", "Contatos: abra o arquivo .vcf no aparelho para importar.");
+                                categories_done.push(cat.id().to_string());
+                            }
+                            Err(e) => {
+                                crate::commands::emit_log(app, "warn", &format!("Contatos: não foi possível abrir o importador: {e}"));
+                            }
+                        }
+                    }
+                }
+                BackupCategory::Sms => {
+                    let xml = cat_dir.join("sms.txt");
+                    if xml.exists() {
+                        let out = AdbController::adb_push(app, serial, &xml.to_string_lossy(), "/sdcard/Download/sms.txt").await;
+                        match out {
+                            Ok(()) => {
+                                crate::commands::emit_log(app, "warn", "SMS: restaurar exige o app nativo/Google. O arquivo foi copiado para Download/ no aparelho.");
+                                categories_done.push(cat.id().to_string());
+                            }
+                            Err(e) => {
+                                crate::commands::emit_log(app, "warn", &format!("SMS: falha ao copiar arquivo: {e}"));
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    for path in category_to_device_paths(&cat) {
+                        let src = cat_dir.join(path.trim_start_matches("/sdcard/").trim_start_matches('/'));
+                        if src.exists() {
+                            let out = AdbController::adb_push(app, serial, &src.to_string_lossy(), &path).await;
+                            match out {
+                                Ok(()) => {
+                                    files_copied += 1;
+                                    crate::commands::emit_log(app, "ok", &format!("Restaurado para {path}"));
+                                }
+                                Err(e) => {
+                                    crate::commands::emit_log(app, "warn", &format!("Falha ao restaurar {path}: {e}"));
+                                }
+                            }
+                        }
+                    }
+                    categories_done.push(cat.id().to_string());
+                }
+            }
+        }
+
         Ok(BackupResult {
             serial: serial.to_string(),
-            destination: destination.to_string(),
-            categories_done: Vec::new(),
-            files_copied: 0,
-            message: "não implementado".to_string(),
+            destination: base.to_string_lossy().to_string(),
+            categories_done,
+            files_copied,
+            message: "Restauração concluída".to_string(),
         })
     }
 }
