@@ -71,7 +71,7 @@ pub struct DeviceHealth {
 }
 
 fn parse_apps(output: &str) -> Vec<AppInfo> {
-    let mut apps = Vec::new();
+    let mut apps: Vec<AppInfo> = Vec::new();
     let mut system = false;
     let mut enabled = true;
     for line in output.lines() {
@@ -90,11 +90,20 @@ fn parse_apps(output: &str) -> Vec<AppInfo> {
             continue;
         }
         if let Some(pkg) = line.strip_prefix("package:") {
-            apps.push(AppInfo {
-                package: pkg.to_string(),
-                system,
-                enabled,
-            });
+            match apps.iter_mut().find(|a| a.package == pkg) {
+                Some(existing) => {
+                    if !enabled {
+                        existing.enabled = false;
+                    }
+                }
+                None => {
+                    apps.push(AppInfo {
+                        package: pkg.to_string(),
+                        system,
+                        enabled,
+                    });
+                }
+            }
         }
     }
     apps
@@ -311,10 +320,16 @@ pub async fn format_userdata(app: AppHandle, serial: String) -> Result<FormatRes
 pub async fn check_frp_status(app: AppHandle, serial: String) -> Result<FrpStatus, String> {
     let frp_value = AdbController::getprop(&app, &serial, "ro.frp.pst")
         .await
-        .unwrap_or_default();
+        .map_err(|e| {
+            emit_log(&app, "error", &format!("Falha ao ler ro.frp.pst: {e}"));
+            format!("Falha ao verificar FRP em {serial}: {e}")
+        })?;
     let oem_value = AdbController::getprop(&app, &serial, "sys.oem_unlock_allowed")
         .await
-        .unwrap_or_default();
+        .map_err(|e| {
+            emit_log(&app, "error", &format!("Falha ao ler sys.oem_unlock_allowed: {e}"));
+            format!("Falha ao verificar FRP em {serial}: {e}")
+        })?;
     let frp_blocked = parse_frp_pst(&frp_value);
     let oem_unlock_allowed = parse_boolean(&oem_value);
 
@@ -339,13 +354,22 @@ pub async fn check_frp_status(app: AppHandle, serial: String) -> Result<FrpStatu
 pub async fn list_apps(app: AppHandle, serial: String) -> Result<Vec<AppInfo>, String> {
     let user = AdbController::run_shell(&app, &serial, &["pm", "list", "packages", "-3"])
         .await
-        .unwrap_or_default();
+        .map_err(|e| {
+            emit_log(&app, "error", &format!("Falha ao listar apps: {e}"));
+            format!("Falha ao listar apps em {serial}: {e}")
+        })?;
     let system = AdbController::run_shell(&app, &serial, &["pm", "list", "packages", "-s"])
         .await
-        .unwrap_or_default();
+        .map_err(|e| {
+            emit_log(&app, "error", &format!("Falha ao listar apps de sistema: {e}"));
+            format!("Falha ao listar apps em {serial}: {e}")
+        })?;
     let disabled = AdbController::run_shell(&app, &serial, &["pm", "list", "packages", "-d"])
         .await
-        .unwrap_or_default();
+        .map_err(|e| {
+            emit_log(&app, "error", &format!("Falha ao listar apps desativados: {e}"));
+            format!("Falha ao listar apps em {serial}: {e}")
+        })?;
 
     let mut combined = String::new();
     combined.push_str("SYSTEM_APPS\n");
@@ -399,7 +423,10 @@ pub async fn manage_apps(
 pub async fn device_health(app: AppHandle, serial: String) -> Result<DeviceHealth, String> {
     let model = AdbController::getprop(&app, &serial, "ro.product.model")
         .await
-        .unwrap_or_default();
+        .map_err(|e| {
+            emit_log(&app, "error", &format!("Falha ao ler modelo: {e}"));
+            format!("Falha ao gerar ficha de saúde em {serial}: {e}")
+        })?;
     let android_version = AdbController::getprop(&app, &serial, "ro.build.version.release")
         .await
         .unwrap_or_default();
@@ -419,7 +446,10 @@ pub async fn device_health(app: AppHandle, serial: String) -> Result<DeviceHealt
         .unwrap_or_default();
     let df = AdbController::run_shell(&app, &serial, &["df", "-h", "/data"])
         .await
-        .unwrap_or_default();
+        .map_err(|e| {
+            emit_log(&app, "error", &format!("Falha ao ler armazenamento: {e}"));
+            format!("Falha ao gerar ficha de saúde em {serial}: {e}")
+        })?;
 
     let (total_storage, free_storage) = parse_df(&df);
 

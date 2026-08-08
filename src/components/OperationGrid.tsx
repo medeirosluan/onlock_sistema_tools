@@ -92,6 +92,11 @@ export function OperationGrid({ platform, serial, onReadInfo, onEraseFrp }: Prop
           {error}
         </div>
       )}
+      {resaleError && (
+        <div className="rounded border border-log-error/40 bg-log-error/10 px-3 py-2 text-sm text-log-error">
+          {resaleError}
+        </div>
+      )}
       {frpStatus && (
         <div
           className={`rounded px-3 py-2 text-sm ${
