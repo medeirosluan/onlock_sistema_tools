@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useFrp } from "../hooks/useFrp";
+import { useBootloader } from "../hooks/useBootloader";
 import type { DeviceInfo, Platform } from "../types";
 
 interface Props {
@@ -25,9 +26,24 @@ const FRP_COMMANDS = [
   "pm clear com.google.android.gms",
 ];
 
+const BOOTLOADER_COMMANDS = [
+  "fastboot getvar unlocked",
+  "fastboot flashing unlock",
+  "fastboot oem unlock",
+];
+
 export function DevicePanel({ platform, device, loading, error, mode, onDetect }: Props) {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [bootConfirmOpen, setBootConfirmOpen] = useState(false);
   const { running, result, error: frpError, setConfirming, run, reboot } = useFrp();
+  const {
+    running: bootRunning,
+    result: bootResult,
+    error: bootError,
+    setConfirming: setBootConfirming,
+    run: bootRun,
+    reboot: bootReboot,
+  } = useBootloader();
 
   const fields = device
     ? [
@@ -45,6 +61,12 @@ export function DevicePanel({ platform, device, loading, error, mode, onDetect }
     setConfirmOpen(false);
     setConfirming(true);
     run(device!.serial);
+  };
+
+  const handleBootConfirm = () => {
+    setBootConfirmOpen(false);
+    setBootConfirming(true);
+    bootRun(device!.serial);
   };
 
   return (
@@ -137,6 +159,37 @@ export function DevicePanel({ platform, device, loading, error, mode, onDetect }
           {running && (
             <p className="mt-3 text-sm text-muted">Executando remoção de FRP... Acompanhe o console de logs.</p>
           )}
+
+          {bootError && (
+            <div className="mt-3 rounded border border-log-error/40 bg-log-error/10 px-3 py-2 text-sm text-log-error">
+              {bootError}
+            </div>
+          )}
+
+          {bootResult?.success ? (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-log-ok">Bootloader desbloqueado — reinicie o aparelho.</p>
+              <button
+                onClick={() => bootReboot(device.serial)}
+                className="rounded border border-border px-3 py-1.5 text-sm text-fg hover:bg-border"
+              >
+                Reiniciar aparelho
+              </button>
+            </div>
+          ) : (
+            !bootRunning && (
+              <button
+                onClick={() => setBootConfirmOpen(true)}
+                className="mt-3 rounded border border-border bg-panel px-4 py-2 text-sm text-fg hover:bg-border"
+              >
+                Desbloquear bootloader
+              </button>
+            )
+          )}
+
+          {bootRunning && (
+            <p className="mt-3 text-sm text-muted">Executando desbloqueio do bootloader... Acompanhe o console de logs.</p>
+          )}
         </div>
       )}
 
@@ -168,6 +221,43 @@ export function DevicePanel({ platform, device, loading, error, mode, onDetect }
               </button>
               <button
                 onClick={handleConfirm}
+                className="rounded bg-log-error px-3 py-1.5 text-sm text-white hover:opacity-80"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bootConfirmOpen && device && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded border border-border bg-panel p-4">
+            <h3 className="text-sm font-semibold text-fg">Confirmar desbloqueio do bootloader</h3>
+            <p className="mt-2 text-xs text-muted">
+              Dispositivo: <span className="font-mono text-fg">{device.serial}</span>
+              {device.model ? ` (${device.model})` : ""}
+            </p>
+            <p className="mt-2 text-sm text-log-warn">
+              Esta operação desbloqueia o bootloader e apaga os dados do aparelho.
+            </p>
+            <p className="mt-2 text-xs text-muted">Comandos a executar:</p>
+            <ul className="mt-1 flex flex-col gap-1">
+              {BOOTLOADER_COMMANDS.map((cmd) => (
+                <li key={cmd} className="font-mono text-xs text-fg">
+                  $ {cmd}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setBootConfirmOpen(false)}
+                className="rounded border border-border px-3 py-1.5 text-sm text-fg hover:bg-border"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleBootConfirm}
                 className="rounded bg-log-error px-3 py-1.5 text-sm text-white hover:opacity-80"
               >
                 Confirmar
