@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { useFrp } from "../hooks/useFrp";
 import type { DeviceInfo, Platform } from "../types";
 
 interface Props {
@@ -16,7 +18,16 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   mtk: "MTK",
 };
 
+const FRP_COMMANDS = [
+  "settings put global device_provisioned 1",
+  "settings put secure user_setup_complete 1",
+  "pm clear com.google.android.gms",
+];
+
 export function DevicePanel({ platform, device, loading, error, mode, onDetect }: Props) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const { running, result, error: frpError, setConfirming, run, reboot } = useFrp();
+
   const fields = device
     ? [
         ["Modelo", device.model],
@@ -28,6 +39,12 @@ export function DevicePanel({ platform, device, loading, error, mode, onDetect }
         ["IMEI", device.imei],
       ]
     : [];
+
+  const handleConfirm = () => {
+    setConfirmOpen(false);
+    setConfirming(true);
+    run(device!.serial);
+  };
 
   return (
     <section className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
@@ -79,6 +96,83 @@ export function DevicePanel({ platform, device, loading, error, mode, onDetect }
               ? "Detectando dispositivo..."
               : 'Nenhum dispositivo detectado. Clique em "Detectar dispositivo".'}
           </p>
+        </div>
+      )}
+
+      {device?.connected && (
+        <div className="rounded border border-border bg-panel p-4">
+          <h3 className="text-sm font-semibold text-fg">Operações</h3>
+          <p className="mt-1 text-xs text-muted">
+            Remova o bloqueio de conta (FRP) do aparelho conectado.
+          </p>
+
+          {frpError && (
+            <div className="mt-3 rounded border border-log-error/40 bg-log-error/10 px-3 py-2 text-sm text-log-error">
+              {frpError}
+            </div>
+          )}
+
+          {result?.success ? (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-log-ok">FRP removido — reinicie o aparelho.</p>
+              <button
+                onClick={() => reboot(device.serial)}
+                className="rounded border border-border px-3 py-1.5 text-sm text-fg hover:bg-border"
+              >
+                Reiniciar aparelho
+              </button>
+            </div>
+          ) : (
+            !running && (
+              <button
+                onClick={() => setConfirmOpen(true)}
+                className="mt-3 rounded border border-border bg-panel px-4 py-2 text-sm text-fg hover:bg-border"
+              >
+                Remover FRP
+              </button>
+            )
+          )}
+
+          {running && (
+            <p className="mt-3 text-sm text-muted">Executando remoção de FRP... Acompanhe o console de logs.</p>
+          )}
+        </div>
+      )}
+
+      {confirmOpen && device && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded border border-border bg-panel p-4">
+            <h3 className="text-sm font-semibold text-fg">Confirmar remoção de FRP</h3>
+            <p className="mt-2 text-xs text-muted">
+              Dispositivo: <span className="font-mono text-fg">{device.serial}</span>
+              {device.model ? ` (${device.model})` : ""}
+            </p>
+            <p className="mt-2 text-sm text-log-warn">
+              Esta operação remove o bloqueio de conta (FRP) do aparelho.
+            </p>
+            <p className="mt-2 text-xs text-muted">Comandos a executar:</p>
+            <ul className="mt-1 flex flex-col gap-1">
+              {FRP_COMMANDS.map((cmd) => (
+                <li key={cmd} className="font-mono text-xs text-fg">
+                  $ {cmd}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmOpen(false)}
+                className="rounded border border-border px-3 py-1.5 text-sm text-fg hover:bg-border"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirm}
+                className="rounded bg-log-error px-3 py-1.5 text-sm text-white hover:opacity-80"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </section>
