@@ -195,7 +195,8 @@ impl BootloaderUnlocker {
             let result = match step.id {
                 "fastboot" => AdbController::reboot_bootloader(app, serial).await.map(|_| String::new()),
                 "verify" => {
-                    tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
+                    AdbController::wait_for_fastboot_device(app, serial).await?;
+                    emit_log(app, "ok", "Aparelho detectado em modo fastboot.");
                     let out = AdbController::fastboot(app, serial, &["getvar", "unlocked"]).await;
                     if let Ok(ref out) = out {
                         if is_bootloader_unlocked(out) {

@@ -72,6 +72,21 @@ impl AdbController {
         Ok(())
     }
 
+    pub async fn wait_for_fastboot_device(app: &AppHandle, serial: &str) -> Result<(), String> {
+        let deadline = Duration::from_secs(30);
+        let started = std::time::Instant::now();
+        loop {
+            let output = Self::run_fastboot(app, &["devices"]).await.unwrap_or_default();
+            if output.lines().any(|line| line.starts_with(serial)) {
+                return Ok(());
+            }
+            if started.elapsed() >= deadline {
+                return Err(format!("aparelho {serial} não apareceu em modo fastboot em 30 segundos"));
+            }
+            tokio::time::sleep(Duration::from_millis(1500)).await;
+        }
+    }
+
     async fn run(app: &AppHandle, args: &[&str]) -> Result<String, String> {
         let command = app
             .shell()
