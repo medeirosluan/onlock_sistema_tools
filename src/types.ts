@@ -69,3 +69,9 @@ export interface BackupResult {
   files_copied: number;
   message: string;
 }
+
+export interface FormatResult {
+  serial: string;
+  success: boolean;
+  message: string;
+}

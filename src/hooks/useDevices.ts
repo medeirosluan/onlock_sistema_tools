@@ -21,6 +21,8 @@ export function useDevices() {
 
   useEffect(() => {
     startAdbServer().then(refresh).catch(() => {});
+    const interval = setInterval(refresh, 3000);
+    return () => clearInterval(interval);
   }, [refresh]);
 
   return { devices, loading, error, refresh };

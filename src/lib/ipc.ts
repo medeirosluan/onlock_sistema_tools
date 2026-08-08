@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { AdbDevice, AdbStatus, BackupCategory, BackupProgress, BackupResult, BootloaderResult, DeviceInfo, FrpResult, LogEntry } from "../types";
+import type { AdbDevice, AdbStatus, BackupCategory, BackupProgress, BackupResult, BootloaderResult, DeviceInfo, FormatResult, FrpResult, LogEntry } from "../types";
 
 export const detectDevice = (serial: string, platform: string): Promise<DeviceInfo> =>
   invoke<DeviceInfo>("detect_device", { serial, platform });
@@ -50,3 +50,9 @@ export const cancelBackup = (): Promise<void> => invoke("cancel_backup");
 
 export const onBackupProgress = (cb: (p: BackupProgress) => void): Promise<() => void> =>
   listen<BackupProgress>("backup-progress", (event) => cb(event.payload));
+
+export const formatUserdata = (serial: string): Promise<FormatResult> =>
+  invoke<FormatResult>("format_userdata", { serial });
+
+export const rebootBootloader = (serial: string): Promise<void> =>
+  invoke("reboot_bootloader_cmd", { serial });
