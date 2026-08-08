@@ -81,3 +81,13 @@ Comandos executados:
 
 - `fastboot getvar unlocked`
 - `fastboot flashing unlock` (fallback: `fastboot oem unlock`)
+
+### Limitação
+
+Esta operação usa o **protocolo fastboot AOSP** e funciona em aparelhos que o expõem corretamente (ex: Pixel, OnePlus e a maioria dos aparelhos AOSP). **Não funciona em aparelhos Xiaomi/POCO com chipset MediaTek** (ex: POCO C31 / Redmi 9C, Helio G35):
+
+- O bootloader desses aparelhos não expõe o gadget fastboot AOSP completo — nem o fastboot do Google, nem o da Xiaomi, nem o Mi Unlock oficial conseguem detectá-los via fastboot.
+- O caminho oficial para Xiaomi/MediaTek é a ferramenta **Mi Unlock** da Xiaomi (conta + espera de 7 dias).
+- O caminho alternativo é o **mtkclient** (modo BROM/preloader), que modifica a partição `seccfg` do chip — porém é de baixo nível, exige timing manual da entrada em BROM, e tem **risco real de brick**. Em vários aparelhos (incluindo o POCO C31) o preloader é protegido e o handshake falha, exigindo DA proprietário (ferramentas comerciais).
+
+Antes de executar em um aparelho Xiaomi/MediaTek, verifique a compatibilidade. O app detecta e loga falhas do fastboot, mas a limitação é do fabricante.
