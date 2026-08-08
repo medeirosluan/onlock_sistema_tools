@@ -37,6 +37,77 @@ fn format_result(serial: &str, success: bool, message: &str) -> FormatResult {
     }
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct FrpStatus {
+    pub frp_blocked: bool,
+    pub oem_unlock_allowed: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct AppInfo {
+    pub package: String,
+    pub system: bool,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ManageAppsResult {
+    pub processed: usize,
+    pub failed: Vec<String>,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DeviceHealth {
+    pub model: String,
+    pub imei: String,
+    pub android_version: String,
+    pub build: String,
+    pub total_storage: String,
+    pub free_storage: String,
+    pub battery: u8,
+    pub frp_blocked: bool,
+}
+
+fn parse_apps(output: &str) -> Vec<AppInfo> {
+    let mut apps = Vec::new();
+    let mut system = false;
+    let mut enabled = true;
+    for line in output.lines() {
+        let line = line.trim();
+        if line.contains("SYSTEM_APPS") {
+            system = true;
+            continue;
+        }
+        if line.contains("USER_APPS") {
+            system = false;
+            continue;
+        }
+        if line.contains("DISABLED_APPS") {
+            system = false;
+            enabled = false;
+            continue;
+        }
+        if let Some(pkg) = line.strip_prefix("package:") {
+            apps.push(AppInfo {
+                package: pkg.to_string(),
+                system,
+                enabled,
+            });
+        }
+    }
+    apps
+}
+
+fn parse_frp_pst(value: &str) -> bool {
+    !value.trim().is_empty()
+}
+
+fn parse_boolean(value: &str) -> bool {
+    matches!(value.trim().to_lowercase().as_str(), "true" | "1")
+}
+
 fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -263,5 +334,51 @@ mod tests {
         let r = format_result("ROJNKFZ57XJFD6N7", false, "Falha ao apagar userdata");
         assert!(!r.success);
         assert_eq!(r.message, "Falha ao apagar userdata");
+    }
+
+    #[test]
+    fn parse_apps_combines_user_system_and_disabled() {
+        let output = "USER_APPS\npackage:com.example.app\npackage:com.android.chrome\npackage:com.google.android.gms\n";
+        let apps = parse_apps(output);
+        assert_eq!(apps.len(), 3);
+        assert_eq!(apps[0].package, "com.example.app");
+        assert!(!apps[0].system);
+    }
+
+    #[test]
+    fn parse_apps_marks_system_and_disabled() {
+        let output = "SYSTEM_APPS\npackage:com.android.settings\nUSER_APPS\npackage:com.example.app\n";
+        let apps = parse_apps(output);
+        let settings = apps.iter().find(|a| a.package == "com.android.settings").unwrap();
+        assert!(settings.system);
+        let app = apps.iter().find(|a| a.package == "com.example.app").unwrap();
+        assert!(!app.system);
+        assert!(app.enabled);
+    }
+
+    #[test]
+    fn parse_apps_marks_disabled_section() {
+        let output = "USER_APPS\npackage:com.example.app\nDISABLED_APPS\npackage:com.disabled.app\n";
+        let apps = parse_apps(output);
+        let app = apps.iter().find(|a| a.package == "com.example.app").unwrap();
+        assert!(app.enabled);
+        let disabled = apps.iter().find(|a| a.package == "com.disabled.app").unwrap();
+        assert!(!disabled.enabled);
+    }
+
+    #[test]
+    fn parse_frp_pst_detects_block() {
+        assert!(parse_frp_pst("1"));
+        assert!(parse_frp_pst("FRP"));
+        assert!(!parse_frp_pst(""));
+    }
+
+    #[test]
+    fn parse_boolean_handles_common_values() {
+        assert!(parse_boolean("true"));
+        assert!(parse_boolean("1"));
+        assert!(!parse_boolean("false"));
+        assert!(!parse_boolean("0"));
+        assert!(!parse_boolean(""));
     }
 }
