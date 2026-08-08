@@ -6,10 +6,25 @@ export function useLogs() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
   useEffect(() => {
+    let disposed = false;
     const unsubs: (() => void)[] = [];
-    onLogEvent((entry) => setLogs((prev) => [...prev, entry])).then((u) => unsubs.push(u));
-    onLogsCleared(() => setLogs([])).then((u) => unsubs.push(u));
-    return () => unsubs.forEach((fn) => fn());
+
+    const subscribe = (promise: Promise<() => void>) => {
+      promise
+        .then((un) => {
+          if (disposed) un();
+          else unsubs.push(un);
+        })
+        .catch(() => {});
+    };
+
+    subscribe(onLogEvent((entry) => setLogs((prev) => [...prev, entry])));
+    subscribe(onLogsCleared(() => setLogs([])));
+
+    return () => {
+      disposed = true;
+      unsubs.forEach((fn) => fn());
+    };
   }, []);
 
   const clear = () => {

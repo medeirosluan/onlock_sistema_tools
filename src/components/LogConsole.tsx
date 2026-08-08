@@ -28,7 +28,7 @@ export function LogConsole({ logs, onClear }: Props) {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [logs]);
+  }, [logs, filter]);
 
   const visible = filter === "all" ? logs : logs.filter((log) => log.level === filter);
 
@@ -62,7 +62,7 @@ export function LogConsole({ logs, onClear }: Props) {
           <p className="text-muted">Nenhum log.</p>
         ) : (
           visible.map((log, i) => (
-            <div key={i} className="flex gap-2">
+            <div key={`${log.timestamp}-${i}`} className="flex gap-2">
               <span className="shrink-0 text-muted">
                 {new Date(log.timestamp).toLocaleTimeString("pt-BR")}
               </span>

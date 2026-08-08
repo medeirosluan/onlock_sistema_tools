@@ -35,15 +35,15 @@ pub fn emit_log(app: &AppHandle, level: &str, message: &str) {
 }
 
 #[tauri::command]
-pub fn detect_device(
+pub async fn detect_device(
     adb: State<'_, AdbSimulator>,
     app: AppHandle,
     platform: String,
 ) -> Result<DeviceInfo, String> {
     emit_log(&app, "info", "Conectando ao dispositivo...");
-    std::thread::sleep(Duration::from_millis(400));
+    tokio::time::sleep(Duration::from_millis(400)).await;
     emit_log(&app, "info", "Lendo propriedades do dispositivo (getprop)...");
-    std::thread::sleep(Duration::from_millis(400));
+    tokio::time::sleep(Duration::from_millis(400)).await;
 
     let device = adb.detect(&platform);
     let status = AdbStatusPayload {

@@ -6,9 +6,24 @@ export function useAdbStatus() {
   const [status, setStatus] = useState<AdbStatus>({ connected: false, platform: null });
 
   useEffect(() => {
+    let disposed = false;
     const unsubs: (() => void)[] = [];
-    onAdbStatus(setStatus).then((u) => unsubs.push(u));
-    return () => unsubs.forEach((fn) => fn());
+
+    const subscribe = (promise: Promise<() => void>) => {
+      promise
+        .then((un) => {
+          if (disposed) un();
+          else unsubs.push(un);
+        })
+        .catch(() => {});
+    };
+
+    subscribe(onAdbStatus(setStatus));
+
+    return () => {
+      disposed = true;
+      unsubs.forEach((fn) => fn());
+    };
   }, []);
 
   return status;

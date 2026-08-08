@@ -11,7 +11,7 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   samsung: "Samsung",
   xiaomi: "Xiaomi",
   qualcomm: "Qualcomm",
-  mtk: "MediaTek",
+  mtk: "MTK",
 };
 
 export function DevicePanel({ platform, device, loading, onDetect }: Props) {
