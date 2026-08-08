@@ -3,8 +3,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
-use crate::adb_controller::{AdbController, AdbDevice};
+use crate::adb_controller::{AdbController, AdbDevice, CancelFlag};
 use crate::adb_simulator::{AdbSimulator, DeviceInfo};
+use crate::backup::{BackupManager, BackupResult};
 use crate::operations::{BootloaderResult, BootloaderUnlocker, FrpRemover, FrpResult};
 
 #[derive(Debug, Clone, Serialize)]
@@ -145,6 +146,34 @@ pub async fn fastboot_reboot(app: AppHandle, serial: String) -> Result<(), Strin
     emit_log(&app, "info", &format!("Reiniciando dispositivo {serial} (fastboot)..."));
     AdbController::fastboot_reboot(&app, &serial).await?;
     emit_log(&app, "ok", &format!("Reinício iniciado em {serial}."));
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn run_backup(
+    app: AppHandle,
+    serial: String,
+    categories: Vec<String>,
+    destination: String,
+) -> Result<BackupResult, String> {
+    emit_log(&app, "info", &format!("Iniciando backup do dispositivo {serial}..."));
+    BackupManager::run_backup(&app, &serial, categories, &destination).await
+}
+
+#[tauri::command]
+pub async fn restore_backup(
+    app: AppHandle,
+    serial: String,
+    destination: String,
+    categories: Vec<String>,
+) -> Result<BackupResult, String> {
+    emit_log(&app, "info", &format!("Iniciando restauração do dispositivo {serial}..."));
+    BackupManager::restore(&app, &serial, &destination, categories).await
+}
+
+#[tauri::command]
+pub async fn cancel_backup(flag: State<'_, CancelFlag>) -> Result<(), String> {
+    flag.0.store(true, std::sync::atomic::Ordering::Relaxed);
     Ok(())
 }
 

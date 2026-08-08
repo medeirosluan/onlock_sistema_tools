@@ -4,6 +4,7 @@ mod backup;
 mod commands;
 mod operations;
 
+use adb_controller::CancelFlag;
 use adb_simulator::AdbSimulator;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -12,6 +13,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(AdbSimulator)
+        .manage(CancelFlag::default())
         .invoke_handler(tauri::generate_handler![
             commands::detect_device,
             commands::list_devices,
@@ -20,6 +22,9 @@ pub fn run() {
             commands::reboot_device,
             commands::unlock_bootloader,
             commands::fastboot_reboot,
+            commands::run_backup,
+            commands::restore_backup,
+            commands::cancel_backup,
             commands::clear_logs,
             commands::get_app_version
         ])
