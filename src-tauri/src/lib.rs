@@ -9,6 +9,7 @@ use adb_simulator::AdbSimulator;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(AdbSimulator)
         .invoke_handler(tauri::generate_handler![
             commands::detect_device,

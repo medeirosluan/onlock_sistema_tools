@@ -1,3 +1,4 @@
+use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 use serde::Serialize;
@@ -9,6 +10,14 @@ pub struct AdbDevice {
     pub serial: String,
     pub state: String,
     pub model: Option<String>,
+}
+
+pub struct CancelFlag(pub AtomicBool);
+
+impl Default for CancelFlag {
+    fn default() -> Self {
+        Self(AtomicBool::new(false))
+    }
 }
 
 pub struct AdbController;
@@ -87,6 +96,21 @@ impl AdbController {
         }
     }
 
+    pub async fn adb_pull(app: &AppHandle, serial: &str, remote: &str, local: &str) -> Result<(), String> {
+        Self::run_long(app, &["-s", serial, "pull", remote, local]).await?;
+        Ok(())
+    }
+
+    pub async fn adb_push(app: &AppHandle, serial: &str, local: &str, remote: &str) -> Result<(), String> {
+        Self::run_long(app, &["-s", serial, "push", local, remote]).await?;
+        Ok(())
+    }
+
+    pub async fn list_remote_dir(app: &AppHandle, serial: &str, path: &str) -> Result<usize, String> {
+        let output = Self::run(app, &["-s", serial, "shell", "ls", "-1", path]).await?;
+        Ok(output.lines().filter(|l| !l.trim().is_empty()).count())
+    }
+
     async fn run(app: &AppHandle, args: &[&str]) -> Result<String, String> {
         let command = app
             .shell()
@@ -98,6 +122,30 @@ impl AdbController {
         )
         .await
         .map_err(|_| "adb não respondeu dentro de 15 segundos".to_string())?
+        .map_err(|e| format!("Erro ao executar adb: {e}"))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let message = if stderr.trim().is_empty() {
+                "adb retornou erro sem mensagem".to_string()
+            } else {
+                stderr.to_string()
+            };
+            return Err(message);
+        }
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    }
+
+    async fn run_long(app: &AppHandle, args: &[&str]) -> Result<String, String> {
+        let command = app
+            .shell()
+            .sidecar("adb")
+            .map_err(|e| format!("Erro ao resolver sidecar adb: {e}"))?;
+        let output = tokio::time::timeout(
+            Duration::from_secs(120),
+            command.args(args).output(),
+        )
+        .await
+        .map_err(|_| "adb não respondeu dentro de 120 segundos".to_string())?
         .map_err(|e| format!("Erro ao executar adb: {e}"))?;
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
