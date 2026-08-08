@@ -1,9 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { AdbStatus, DeviceInfo, LogEntry } from "../types";
+import type { AdbDevice, AdbStatus, DeviceInfo, LogEntry } from "../types";
 
-export const detectDevice = (platform: string): Promise<DeviceInfo> =>
-  invoke<DeviceInfo>("detect_device", { platform });
+export const detectDevice = (serial: string, platform: string): Promise<DeviceInfo> =>
+  invoke<DeviceInfo>("detect_device", { serial, platform });
+
+export const listDevices = (): Promise<AdbDevice[]> => invoke<AdbDevice[]>("list_devices");
+
+export const startAdbServer = (): Promise<void> => invoke("start_adb_server");
 
 export const clearLogs = (): Promise<void> => invoke("clear_logs");
 

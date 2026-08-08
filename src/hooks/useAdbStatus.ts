@@ -3,7 +3,7 @@ import type { AdbStatus } from "../types";
 import { onAdbStatus } from "../lib/ipc";
 
 export function useAdbStatus() {
-  const [status, setStatus] = useState<AdbStatus>({ connected: false, platform: null });
+  const [status, setStatus] = useState<AdbStatus>({ connected: false, platform: null, mode: "sim" });
 
   useEffect(() => {
     let disposed = false;

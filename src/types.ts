@@ -22,4 +22,11 @@ export interface LogEntry {
 export interface AdbStatus {
   connected: boolean;
   platform: string | null;
+  mode: "real" | "sim";
+}
+
+export interface AdbDevice {
+  serial: string;
+  state: string;
+  model: string | null;
 }
