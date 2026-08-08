@@ -35,6 +35,10 @@
     ],
     "externalBin": [
       "binaries/adb"
+    ],
+    "resources": [
+      "binaries/AdbWinApi.dll",
+      "binaries/AdbWinUsbApi.dll"
     ]
   }
 }
