@@ -65,58 +65,51 @@ impl FrpRemover {
         let steps = frp_steps();
         let mut completed = 0;
 
-        for step in steps.iter().take(3) {
+        for step in &steps {
             emit_log(app, "info", &format!("[FRP] {}", step.description));
-            match step.id {
-                "verify" => {
-                    AdbController::getprop(app, serial, "ro.secure").await.map_err(|e| {
-                        emit_log(app, "error", &format!("[FRP] Verificação falhou: {e}"));
-                        format!("Falha ao verificar dispositivo {serial}: {e}")
-                    })?;
-                }
-                "provision" => {
-                    AdbController::run_shell(
-                        app,
-                        serial,
-                        &["settings", "put", "global", "device_provisioned", "1"],
-                    )
-                    .await
-                    .map_err(|e| {
-                        emit_log(app, "error", &format!("[FRP] Provisionamento falhou: {e}"));
-                        format!("Falha ao provisionar dispositivo {serial}: {e}")
-                    })?;
-                }
-                "setup" => {
-                    AdbController::run_shell(
-                        app,
-                        serial,
-                        &["settings", "put", "secure", "user_setup_complete", "1"],
-                    )
-                    .await
-                    .map_err(|e| {
-                        emit_log(app, "error", &format!("[FRP] Setup falhou: {e}"));
-                        format!("Falha ao marcar setup do dispositivo {serial}: {e}")
-                    })?;
-                }
-                _ => {}
-            }
-            completed += 1;
-        }
 
-        let cleanup = &steps[3];
-        emit_log(app, "info", &format!("[FRP] {}", cleanup.description));
-        match AdbController::run_shell(app, serial, &["pm", "clear", "com.google.android.gms"]).await {
-            Ok(_) => {
+            if step.id == "done" {
+                emit_log(app, "ok", &format!("[FRP] {} — reinicie o aparelho.", step.description));
                 completed += 1;
-                emit_log(app, "ok", "[FRP] Contas limpas.");
+                break;
             }
-            Err(e) => {
-                emit_log(app, "warn", &format!("[FRP] Limpeza de contas não disponível: {e}"));
+
+            let result = match step.id {
+                "verify" => AdbController::getprop(app, serial, "ro.secure").await,
+                "provision" => AdbController::run_shell(
+                    app,
+                    serial,
+                    &["settings", "put", "global", "device_provisioned", "1"],
+                )
+                .await,
+                "setup" => AdbController::run_shell(
+                    app,
+                    serial,
+                    &["settings", "put", "secure", "user_setup_complete", "1"],
+                )
+                .await,
+                "cleanup" => {
+                    AdbController::run_shell(app, serial, &["pm", "clear", "com.google.android.gms"]).await
+                }
+                _ => continue,
+            };
+
+            match result {
+                Ok(_) => {
+                    if step.id == "cleanup" {
+                        emit_log(app, "ok", "[FRP] Contas limpas.");
+                    }
+                    completed += 1;
+                }
+                Err(e) => {
+                    if step.essential {
+                        emit_log(app, "error", &format!("[FRP] {} falhou: {e}", step.description));
+                        return Err(format!("Falha em '{}' no dispositivo {serial}: {e}", step.id));
+                    }
+                    emit_log(app, "warn", &format!("[FRP] {} não disponível: {e}", step.description));
+                }
             }
         }
-
-        let done = &steps[4];
-        emit_log(app, "ok", &format!("[FRP] {} — reinicie o aparelho.", done.description));
 
         Ok(frp_result(serial, true, completed, "FRP removido — reinicie o aparelho"))
     }

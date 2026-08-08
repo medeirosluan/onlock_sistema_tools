@@ -19,6 +19,7 @@ const PLATFORM_LABELS: Record<Platform, string> = {
 };
 
 const FRP_COMMANDS = [
+  "getprop ro.secure",
   "settings put global device_provisioned 1",
   "settings put secure user_setup_complete 1",
   "pm clear com.google.android.gms",
