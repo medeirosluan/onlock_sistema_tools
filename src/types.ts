@@ -44,3 +44,28 @@ export interface BootloaderResult {
   steps_completed: number;
   message: string;
 }
+
+export type BackupCategory =
+  | "photos"
+  | "videos"
+  | "music"
+  | "downloads"
+  | "documents"
+  | "contacts"
+  | "sms";
+
+export interface BackupProgress {
+  category: string;
+  file: string;
+  files_done: number;
+  total_files: number;
+  percent: number;
+}
+
+export interface BackupResult {
+  serial: string;
+  destination: string;
+  categories_done: string[];
+  files_copied: number;
+  message: string;
+}
