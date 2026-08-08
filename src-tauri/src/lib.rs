@@ -1,6 +1,7 @@
 mod adb_controller;
 mod adb_simulator;
 mod commands;
+mod operations;
 
 use adb_simulator::AdbSimulator;
 
