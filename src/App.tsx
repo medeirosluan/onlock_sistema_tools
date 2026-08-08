@@ -1,51 +1,43 @@
 import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import { TopBar } from "./components/TopBar";
+import { ManufacturerTabs } from "./components/ManufacturerTabs";
+import { DevicePanel } from "./components/DevicePanel";
+import { LogConsole } from "./components/LogConsole";
+import { useAdbStatus } from "./hooks/useAdbStatus";
+import { useLogs } from "./hooks/useLogs";
+import { detectDevice } from "./lib/ipc";
+import type { DeviceInfo, Platform } from "./types";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+export default function App() {
+  const [activePlatform, setActivePlatform] = useState<Platform>("samsung");
+  const [devices, setDevices] = useState<Partial<Record<Platform, DeviceInfo>>>({});
+  const [loading, setLoading] = useState(false);
+  const { logs, clear } = useLogs();
+  const status = useAdbStatus();
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+  const handleDetect = async () => {
+    setLoading(true);
+    try {
+      const device = await detectDevice(activePlatform);
+      setDevices((prev) => ({ ...prev, [activePlatform]: device }));
+    } catch {
+      // Erro já registrado pelo backend via evento de log; mantém o estado atual.
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+    <div className="flex h-screen flex-col bg-bg text-fg">
+      <TopBar status={status} onRefresh={handleDetect} />
+      <ManufacturerTabs active={activePlatform} onChange={setActivePlatform} />
+      <DevicePanel
+        platform={activePlatform}
+        device={devices[activePlatform] ?? null}
+        loading={loading}
+        onDetect={handleDetect}
+      />
+      <LogConsole logs={logs} onClear={clear} />
+    </div>
   );
 }
-
-export default App;
