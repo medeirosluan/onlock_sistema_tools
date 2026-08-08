@@ -4,6 +4,7 @@ import { useFrp } from "../hooks/useFrp";
 import { useBootloader } from "../hooks/useBootloader";
 import { useBackup } from "../hooks/useBackup";
 import type { DeviceInfo, Platform } from "../types";
+import { OperationGrid } from "./OperationGrid";
 
 interface Props {
   platform: Platform;
@@ -96,6 +97,10 @@ export function DevicePanel({ platform, device, loading, error, mode, onDetect }
     bootRun(device!.serial);
   };
 
+  const handleEraseFrp = () => {
+    setConfirmOpen(true);
+  };
+
   return (
     <section className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -117,6 +122,15 @@ export function DevicePanel({ platform, device, loading, error, mode, onDetect }
           {loading ? "Detectando..." : "Detectar dispositivo"}
         </button>
       </div>
+
+      {(platform === "xiaomi" || platform === "mtk") && device?.connected && (
+        <OperationGrid
+          platform={platform}
+          serial={device.serial}
+          onReadInfo={onDetect}
+          onEraseFrp={handleEraseFrp}
+        />
+      )}
 
       {error && (
         <div className="rounded border border-log-error/40 bg-log-error/10 px-3 py-2 text-sm text-log-error">
