@@ -1,7 +1,9 @@
+use std::sync::atomic::Ordering;
+
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
-use crate::adb_controller::AdbController;
+use crate::adb_controller::{AdbController, CancelFlag};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum BackupCategory {
@@ -64,7 +66,7 @@ pub fn category_to_device_paths(cat: &BackupCategory) -> Vec<String> {
         ],
         BackupCategory::Downloads => vec!["/sdcard/Download".to_string()],
         BackupCategory::Documents => vec!["/sdcard/Documents".to_string()],
-        BackupCategory::Contacts => vec!["content://contacts/contacts/export".to_string()],
+        BackupCategory::Contacts => vec!["content://contacts/people".to_string()],
         BackupCategory::Sms => vec!["content://sms".to_string()],
     }
 }
@@ -73,7 +75,7 @@ pub fn compute_percent(files_done: usize, total: usize) -> u8 {
     if total == 0 {
         return 0;
     }
-    ((files_done as f64 / total as f64) * 100.0).round() as u8
+    ((files_done as f64 / total as f64) * 100.0).round().min(100.0) as u8
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -102,8 +104,9 @@ impl BackupManager {
         serial: &str,
         categories: Vec<String>,
         destination: &str,
+        flag: &CancelFlag,
     ) -> Result<BackupResult, String> {
-        use tauri::Emitter;
+        flag.0.store(false, Ordering::Relaxed);
 
         let mut categories_done = Vec::new();
         let mut files_copied = 0usize;
@@ -117,9 +120,17 @@ impl BackupManager {
             let cat_dir = base.join(cat.id());
             std::fs::create_dir_all(&cat_dir).map_err(|e| format!("Falha ao criar pasta de backup: {e}"))?;
 
-            let mut cat_files = 0usize;
             let mut done = 0usize;
             for remote in &paths {
+                if flag.0.load(Ordering::Relaxed) {
+                    return Ok(BackupResult {
+                        serial: serial.to_string(),
+                        destination: base.to_string_lossy().to_string(),
+                        categories_done,
+                        files_copied,
+                        message: "Backup cancelado pelo usuário".to_string(),
+                    });
+                }
                 if remote.starts_with("content://") {
                     let out = AdbController::run_shell(app, serial, &["content", "query", "--uri", remote]).await;
                     let file_name = format!("{}.txt", cat.id());
@@ -133,10 +144,9 @@ impl BackupManager {
                         }
                     };
                     std::fs::write(&local, data).map_err(|e| format!("Falha ao salvar {file_name}: {e}"))?;
-                    cat_files += 1;
                     files_copied += 1;
                     done += 1;
-                    crate::commands::emit_log(app, "info", &format!("Salvo {file_name}"));
+                    crate::commands::emit_log(app, "info", &format!("Backup de {} salvo (dump de texto).", cat.label()));
                     continue;
                 }
 
@@ -145,7 +155,6 @@ impl BackupManager {
                 let output = AdbController::adb_pull(app, serial, remote, &cat_dir.to_string_lossy()).await;
                 match output {
                     Ok(()) => {
-                        cat_files += count.max(1);
                         files_copied += count.max(1);
                         done += 1;
                         crate::commands::emit_log(app, "ok", &format!("Categoria {} copiada.", cat.label()));
@@ -155,8 +164,9 @@ impl BackupManager {
                     }
                 }
             }
-            categories_done.push(cat.id().to_string());
-            let _ = cat_files;
+            if done > 0 {
+                categories_done.push(cat.id().to_string());
+            }
         }
 
         Ok(BackupResult {
@@ -194,7 +204,10 @@ impl BackupManager {
         serial: &str,
         destination: &str,
         categories: Vec<String>,
+        flag: &CancelFlag,
     ) -> Result<BackupResult, String> {
+        flag.0.store(false, Ordering::Relaxed);
+
         let mut categories_done = Vec::new();
         let mut files_copied = 0usize;
         let base = std::path::Path::new(destination).join(serial);
@@ -205,33 +218,39 @@ impl BackupManager {
             };
             let cat_dir = base.join(cat.id());
 
+            if flag.0.load(Ordering::Relaxed) {
+                return Ok(BackupResult {
+                    serial: serial.to_string(),
+                    destination: base.to_string_lossy().to_string(),
+                    categories_done,
+                    files_copied,
+                    message: "Restauração cancelada pelo usuário".to_string(),
+                });
+            }
+
             match cat {
                 BackupCategory::Contacts => {
-                    let vcf = cat_dir.join("contacts.txt");
-                    if vcf.exists() {
-                        let out = AdbController::run_shell(
-                            app,
-                            serial,
-                            &["am", "start", "-a", "android.intent.action.VIEW", "-t", "text/x-vcard", "-d", "file:///sdcard/Download/contacts.vcf"],
-                        ).await;
+                    let dump = cat_dir.join("contacts.txt");
+                    if dump.exists() {
+                        let out = AdbController::adb_push(app, serial, &dump.to_string_lossy(), "/sdcard/Download/contacts.txt").await;
                         match out {
-                            Ok(_) => {
-                                crate::commands::emit_log(app, "ok", "Contatos: abra o arquivo .vcf no aparelho para importar.");
+                            Ok(()) => {
+                                crate::commands::emit_log(app, "warn", "Contatos: o backup é um dump de texto (não .vcf). Para importar, use um app de restauração de contatos no aparelho. O arquivo foi copiado para Download/.");
                                 categories_done.push(cat.id().to_string());
                             }
                             Err(e) => {
-                                crate::commands::emit_log(app, "warn", &format!("Contatos: não foi possível abrir o importador: {e}"));
+                                crate::commands::emit_log(app, "warn", &format!("Contatos: falha ao copiar arquivo: {e}"));
                             }
                         }
                     }
                 }
                 BackupCategory::Sms => {
-                    let xml = cat_dir.join("sms.txt");
-                    if xml.exists() {
-                        let out = AdbController::adb_push(app, serial, &xml.to_string_lossy(), "/sdcard/Download/sms.txt").await;
+                    let dump = cat_dir.join("sms.txt");
+                    if dump.exists() {
+                        let out = AdbController::adb_push(app, serial, &dump.to_string_lossy(), "/sdcard/Download/sms.txt").await;
                         match out {
                             Ok(()) => {
-                                crate::commands::emit_log(app, "warn", "SMS: restaurar exige o app nativo/Google. O arquivo foi copiado para Download/ no aparelho.");
+                                crate::commands::emit_log(app, "warn", "SMS: o backup é um dump de texto (não importável diretamente). Use o app nativo/Google para restaurar. O arquivo foi copiado para Download/.");
                                 categories_done.push(cat.id().to_string());
                             }
                             Err(e) => {

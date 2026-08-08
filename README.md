@@ -100,4 +100,4 @@ Com um aparelho conectado (modo REAL), a seção "Operações" permite fazer bac
 2. Escolha as categorias (Fotos, Vídeos, Música, Downloads, Documentos, Contatos, SMS) e a pasta de destino no PC.
 3. Acompanhe o progresso e, se necessário, clique em **Cancelar** (o que já foi copiado é preservado).
 
-Limitações: restauração de SMS exige o app nativo/Google (sem root); contatos são importados via `.vcf` com confirmação no aparelho.
+Limitações: contatos e SMS são salvos como dump de texto (não importável diretamente); restauração de SMS/contatos exige o app nativo do aparelho. Mídia é restaurada via push.

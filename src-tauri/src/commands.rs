@@ -152,23 +152,25 @@ pub async fn fastboot_reboot(app: AppHandle, serial: String) -> Result<(), Strin
 #[tauri::command]
 pub async fn run_backup(
     app: AppHandle,
+    flag: State<'_, CancelFlag>,
     serial: String,
     categories: Vec<String>,
     destination: String,
 ) -> Result<BackupResult, String> {
     emit_log(&app, "info", &format!("Iniciando backup do dispositivo {serial}..."));
-    BackupManager::run_backup(&app, &serial, categories, &destination).await
+    BackupManager::run_backup(&app, &serial, categories, &destination, &flag).await
 }
 
 #[tauri::command]
 pub async fn restore_backup(
     app: AppHandle,
+    flag: State<'_, CancelFlag>,
     serial: String,
     destination: String,
     categories: Vec<String>,
 ) -> Result<BackupResult, String> {
     emit_log(&app, "info", &format!("Iniciando restauração do dispositivo {serial}..."));
-    BackupManager::restore(&app, &serial, &destination, categories).await
+    BackupManager::restore(&app, &serial, &destination, categories, &flag).await
 }
 
 #[tauri::command]
