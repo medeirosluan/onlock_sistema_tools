@@ -37,3 +37,10 @@ export interface FrpResult {
   steps_completed: number;
   message: string;
 }
+
+export interface BootloaderResult {
+  serial: string;
+  success: boolean;
+  steps_completed: number;
+  message: string;
+}

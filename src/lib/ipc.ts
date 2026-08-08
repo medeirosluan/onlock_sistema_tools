@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { AdbDevice, AdbStatus, DeviceInfo, FrpResult, LogEntry } from "../types";
+import type { AdbDevice, AdbStatus, BootloaderResult, DeviceInfo, FrpResult, LogEntry } from "../types";
 
 export const detectDevice = (serial: string, platform: string): Promise<DeviceInfo> =>
   invoke<DeviceInfo>("detect_device", { serial, platform });
@@ -27,3 +27,9 @@ export const runFrpRemoval = (serial: string): Promise<FrpResult> =>
 
 export const rebootDevice = (serial: string): Promise<void> =>
   invoke("reboot_device", { serial });
+
+export const unlockBootloader = (serial: string): Promise<BootloaderResult> =>
+  invoke<BootloaderResult>("unlock_bootloader", { serial });
+
+export const fastbootReboot = (serial: string): Promise<void> =>
+  invoke("fastboot_reboot", { serial });
