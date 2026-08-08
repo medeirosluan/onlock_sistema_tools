@@ -50,6 +50,22 @@ impl AdbController {
         Ok(())
     }
 
+    pub async fn reboot_bootloader(app: &AppHandle, serial: &str) -> Result<(), String> {
+        Self::run(app, &["-s", serial, "reboot", "bootloader"]).await?;
+        Ok(())
+    }
+
+    pub async fn fastboot(app: &AppHandle, serial: &str, args: &[&str]) -> Result<String, String> {
+        let mut full_args = vec!["-s", serial];
+        full_args.extend_from_slice(args);
+        Self::run_fastboot(app, &full_args).await
+    }
+
+    pub async fn fastboot_reboot(app: &AppHandle, serial: &str) -> Result<(), String> {
+        Self::run_fastboot(app, &["-s", serial, "reboot"]).await?;
+        Ok(())
+    }
+
     async fn run(app: &AppHandle, args: &[&str]) -> Result<String, String> {
         let command = app
             .shell()
@@ -66,6 +82,30 @@ impl AdbController {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let message = if stderr.trim().is_empty() {
                 "adb retornou erro sem mensagem".to_string()
+            } else {
+                stderr.to_string()
+            };
+            return Err(message);
+        }
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    }
+
+    async fn run_fastboot(app: &AppHandle, args: &[&str]) -> Result<String, String> {
+        let command = app
+            .shell()
+            .sidecar("fastboot")
+            .map_err(|e| format!("Erro ao resolver sidecar fastboot: {e}"))?;
+        let output = tokio::time::timeout(
+            Duration::from_secs(15),
+            command.args(args).output(),
+        )
+        .await
+        .map_err(|_| "fastboot não respondeu dentro de 15 segundos".to_string())?
+        .map_err(|e| format!("Erro ao executar fastboot: {e}"))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let message = if stderr.trim().is_empty() {
+                "fastboot retornou erro sem mensagem".to_string()
             } else {
                 stderr.to_string()
             };

@@ -34,7 +34,8 @@
       "icons/icon.ico"
     ],
     "externalBin": [
-      "binaries/adb"
+      "binaries/adb",
+      "binaries/fastboot"
     ],
     "resources": [
       "binaries/AdbWinApi.dll",
