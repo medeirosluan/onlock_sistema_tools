@@ -30,3 +30,10 @@ export interface AdbDevice {
   state: string;
   model: string | null;
 }
+
+export interface FrpResult {
+  serial: string;
+  success: boolean;
+  steps_completed: number;
+  message: string;
+}
