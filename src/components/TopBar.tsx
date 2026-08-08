@@ -4,10 +4,11 @@ import type { AdbStatus } from "../types";
 
 interface Props {
   status: AdbStatus;
+  deviceCount: number;
   onRefresh: () => void;
 }
 
-export function TopBar({ status, onRefresh }: Props) {
+export function TopBar({ status, deviceCount, onRefresh }: Props) {
   const [version, setVersion] = useState("0.1.0");
 
   useEffect(() => {
@@ -33,6 +34,11 @@ export function TopBar({ status, onRefresh }: Props) {
           />
           <span className="text-sm text-fg">{status.connected ? "Conectado" : "Desconectado"}</span>
         </div>
+        <span className="hidden text-sm text-muted md:inline">
+          {deviceCount === 0
+            ? "Nenhum dispositivo"
+            : `${deviceCount} dispositivo${deviceCount > 1 ? "s" : ""}`}
+        </span>
         <div className="flex items-center gap-2">
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-border text-sm font-semibold text-fg">
             O
