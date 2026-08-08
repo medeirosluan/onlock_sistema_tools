@@ -65,3 +65,19 @@ Comandos executados:
 ### Limitação
 
 Esta operação serve para **pular a tela de verificação de conta (FRP)** em um aparelho que está bloqueado após um factory reset, marcando-o como provisionado. Ela **não remove** a conta Google de um aparelho que já está em uso — remover a conta exige técnicas mais agressivas (root, apagar o banco de contas `accounts_de.db`) que ficam fora do escopo conservador desta fase. Em um aparelho já desbloqueado/provisionado, os comandos são inofensivos e a conta permanece (comportamento esperado).
+
+## Operação: Desbloqueio de Bootloader (fastboot)
+
+Com um aparelho conectado (modo REAL), a seção "Operações" do painel permite desbloquear o bootloader via fastboot:
+
+1. Clique em **Desbloquear bootloader**.
+2. Revise o aparelho e os comandos exibidos e clique em **Confirmar**.
+3. Acompanhe o progresso no console de logs.
+4. Ao final, clique em **Reiniciar aparelho** para aplicar.
+
+Aviso: o desbloqueio apaga os dados do aparelho. Se o bootloader já estiver desbloqueado, o app informa e não executa.
+
+Comandos executados:
+
+- `fastboot getvar unlocked`
+- `fastboot flashing unlock` (fallback: `fastboot oem unlock`)
