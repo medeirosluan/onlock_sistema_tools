@@ -5,6 +5,7 @@ use tauri::{AppHandle, Emitter, State};
 
 use crate::adb_controller::{AdbController, AdbDevice};
 use crate::adb_simulator::{AdbSimulator, DeviceInfo};
+use crate::operations::{FrpRemover, FrpResult};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct LogPayload {
@@ -117,6 +118,20 @@ pub async fn detect_device(
     emit_status(&app, true, device.platform.clone(), "real".to_string());
     emit_log(&app, "ok", &format!("Dispositivo identificado: {}", device.model));
     Ok(device)
+}
+
+#[tauri::command]
+pub async fn run_frp_removal(app: AppHandle, serial: String) -> Result<FrpResult, String> {
+    emit_log(&app, "info", &format!("Iniciando remoção de FRP no dispositivo {serial}..."));
+    FrpRemover::run(&app, &serial).await
+}
+
+#[tauri::command]
+pub async fn reboot_device(app: AppHandle, serial: String) -> Result<(), String> {
+    emit_log(&app, "info", &format!("Reiniciando dispositivo {serial}..."));
+    AdbController::reboot(&app, &serial).await?;
+    emit_log(&app, "ok", &format!("Reinício iniciado em {serial}."));
+    Ok(())
 }
 
 #[tauri::command]

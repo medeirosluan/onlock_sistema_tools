@@ -14,6 +14,8 @@ pub fn run() {
             commands::detect_device,
             commands::list_devices,
             commands::start_adb_server,
+            commands::run_frp_removal,
+            commands::reboot_device,
             commands::clear_logs,
             commands::get_app_version
         ])
