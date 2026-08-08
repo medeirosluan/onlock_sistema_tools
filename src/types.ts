@@ -75,3 +75,32 @@ export interface FormatResult {
   success: boolean;
   message: string;
 }
+
+export interface FrpStatus {
+  frp_blocked: boolean;
+  oem_unlock_allowed: boolean;
+  message: string;
+}
+
+export interface AppInfo {
+  package: string;
+  system: boolean;
+  enabled: boolean;
+}
+
+export interface ManageAppsResult {
+  processed: number;
+  failed: string[];
+  message: string;
+}
+
+export interface DeviceHealth {
+  model: string;
+  imei: string;
+  android_version: string;
+  build: string;
+  total_storage: string;
+  free_storage: string;
+  battery: number;
+  frp_blocked: boolean;
+}
