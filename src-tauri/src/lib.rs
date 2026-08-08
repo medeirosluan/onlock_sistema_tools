@@ -16,6 +16,8 @@ pub fn run() {
             commands::start_adb_server,
             commands::run_frp_removal,
             commands::reboot_device,
+            commands::unlock_bootloader,
+            commands::fastboot_reboot,
             commands::clear_logs,
             commands::get_app_version
         ])
