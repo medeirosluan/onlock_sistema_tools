@@ -39,6 +39,17 @@ impl AdbController {
         Ok(parse_imei(&output))
     }
 
+    pub async fn run_shell(app: &AppHandle, serial: &str, args: &[&str]) -> Result<String, String> {
+        let mut full_args = vec!["-s", serial, "shell"];
+        full_args.extend_from_slice(args);
+        Self::run(app, &full_args).await
+    }
+
+    pub async fn reboot(app: &AppHandle, serial: &str) -> Result<(), String> {
+        Self::run(app, &["-s", serial, "reboot"]).await?;
+        Ok(())
+    }
+
     async fn run(app: &AppHandle, args: &[&str]) -> Result<String, String> {
         let command = app
             .shell()
