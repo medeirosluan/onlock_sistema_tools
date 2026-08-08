@@ -112,3 +112,11 @@ Nas abas **Xiaomi** e **MTK**, a área central exibe um grid com 4 botões:
 - **Format Userdata** — apaga a partição userdata via fastboot (apaga os dados; confirmação obrigatória).
 
 O status do topo (dispositivos conectados) é atualizado automaticamente a cada 3 segundos (polling USB).
+
+## Preparação de Revenda
+
+O grid de operações inclui 3 botões para preparar aparelhos para revenda:
+
+- **Check FRP** — verifica se o FRP está limpo (ro.frp.pst) e mostra o status (verde = limpo, âmbar = presente).
+- **Apps** — lista os apps instalados (sistema + usuário) e permite desativar (`pm disable-user`) ou remover (`pm uninstall`) os selecionados.
+- **Ficha Saúde** — mostra modelo, IMEI, Android, build, armazenamento, bateria e status FRP.
