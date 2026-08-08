@@ -24,7 +24,9 @@ cargo test
 
 ## Comandos do backend
 
-- `detect_device(platform)` — simula leitura ADB e retorna `DeviceInfo`; emite `log-event`/`adb-status`.
+- `detect_device(serial, platform)` — lê propriedades reais (getprop) do dispositivo; emite `log-event`/`adb-status`.
+- `run_frp_removal(serial)` — executa a remoção de FRP (ver Operação abaixo).
+- `reboot_device(serial)` — reinicia o aparelho via adb.
 - `clear_logs()` — emite evento `logs-cleared`.
 - `get_app_version()` — versão do app.
 
@@ -55,6 +57,11 @@ Com um aparelho conectado (modo REAL), a seção "Operações" do painel permite
 
 Comandos executados:
 
+- `getprop ro.secure`
 - `settings put global device_provisioned 1`
 - `settings put secure user_setup_complete 1`
 - `pm clear com.google.android.gms`
+
+### Limitação
+
+Esta operação serve para **pular a tela de verificação de conta (FRP)** em um aparelho que está bloqueado após um factory reset, marcando-o como provisionado. Ela **não remove** a conta Google de um aparelho que já está em uso — remover a conta exige técnicas mais agressivas (root, apagar o banco de contas `accounts_de.db`) que ficam fora do escopo conservador desta fase. Em um aparelho já desbloqueado/provisionado, os comandos são inofensivos e a conta permanece (comportamento esperado).
