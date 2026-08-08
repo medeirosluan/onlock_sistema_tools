@@ -1,4 +1,4 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
@@ -50,6 +50,7 @@ pub async fn start_adb_server(app: AppHandle) -> Result<(), String> {
     emit_log(&app, "info", "Iniciando adb server...");
     match AdbController::start_server(&app).await {
         Ok(()) => {
+            emit_status(&app, true, String::new(), "real".to_string());
             emit_log(&app, "ok", "ADB server iniciado.");
             Ok(())
         }

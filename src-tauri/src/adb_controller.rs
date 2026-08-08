@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use serde::Serialize;
 use tauri::AppHandle;
 use tauri_plugin_shell::ShellExt;
@@ -37,13 +39,21 @@ impl AdbController {
             .shell()
             .sidecar("adb")
             .map_err(|e| format!("Erro ao resolver sidecar adb: {e}"))?;
-        let output = command
-            .args(args)
-            .output()
-            .await
-            .map_err(|e| format!("Erro ao executar adb: {e}"))?;
+        let output = tokio::time::timeout(
+            Duration::from_secs(15),
+            command.args(args).output(),
+        )
+        .await
+        .map_err(|_| "adb não respondeu dentro de 15 segundos".to_string())?
+        .map_err(|e| format!("Erro ao executar adb: {e}"))?;
         if !output.status.success() {
-            return Err(String::from_utf8_lossy(&output.stderr).to_string());
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let message = if stderr.trim().is_empty() {
+                "adb retornou erro sem mensagem".to_string()
+            } else {
+                stderr.to_string()
+            };
+            return Err(message);
         }
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }
