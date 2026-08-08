@@ -1,5 +1,6 @@
 mod adb_controller;
 mod adb_simulator;
+mod backup;
 mod commands;
 mod operations;
 
