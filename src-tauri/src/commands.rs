@@ -100,6 +100,7 @@ pub async fn detect_device(
     let battery = AdbController::battery_level(&app, &serial)
         .await
         .unwrap_or(None);
+    let imei = AdbController::imei(&app, &serial).await.unwrap_or(None);
 
     let platform_mapped = crate::adb_controller::map_platform(&brand, &board);
     let device = DeviceInfo {
@@ -110,7 +111,7 @@ pub async fn detect_device(
         platform: platform_mapped,
         connected: true,
         battery: battery.unwrap_or(0),
-        imei: String::new(),
+        imei: imei.unwrap_or_default(),
     };
 
     emit_status(&app, true, device.platform.clone(), "real".to_string());

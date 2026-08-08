@@ -34,6 +34,11 @@ impl AdbController {
         Ok(parse_battery_level(&output))
     }
 
+    pub async fn imei(app: &AppHandle, serial: &str) -> Result<Option<String>, String> {
+        let output = Self::run(app, &["-s", serial, "shell", "service", "call", "iphonesubinfo", "1"]).await?;
+        Ok(parse_imei(&output))
+    }
+
     async fn run(app: &AppHandle, args: &[&str]) -> Result<String, String> {
         let command = app
             .shell()
@@ -113,6 +118,60 @@ pub fn parse_battery_level(output: &str) -> Option<u8> {
     None
 }
 
+pub fn parse_imei(output: &str) -> Option<String> {
+    let mut bytes: Vec<u8> = Vec::new();
+    for line in output.lines() {
+        let line = line.trim();
+        let Some(addr) = line.find("0x") else { continue };
+        let Some(colon) = line[addr..].find(':') else { continue };
+        let data = &line[addr + colon + 1..];
+        let data = data.split('\'').next().unwrap_or(data);
+        for token in data.split_whitespace() {
+            if token.len() != 8 || !token.chars().all(|c| c.is_ascii_hexdigit()) {
+                continue;
+            }
+            // The dump shows each 4-byte word in big-endian text order, but
+            // memory is little-endian: reverse the byte order within the word.
+            for i in (0..8).step_by(2).rev() {
+                if let Ok(b) = u8::from_str_radix(&token[i..i + 2], 16) {
+                    bytes.push(b);
+                }
+            }
+        }
+    }
+
+    let mut decoded = String::new();
+    for pair in bytes.chunks(2) {
+        if pair.len() == 2 && pair[1] == 0 {
+            let c = pair[0] as char;
+            if c.is_ascii_digit() {
+                decoded.push(c);
+            }
+        }
+    }
+
+    let mut best = String::new();
+    let mut current = String::new();
+    for c in decoded.chars() {
+        if c.is_ascii_digit() {
+            current.push(c);
+        } else if current.len() > best.len() {
+            best = std::mem::take(&mut current);
+        } else {
+            current.clear();
+        }
+    }
+    if current.len() > best.len() {
+        best = current;
+    }
+
+    if best.len() >= 14 {
+        Some(best)
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -173,5 +232,18 @@ mod tests {
     fn parse_battery_level_returns_none_when_missing() {
         assert_eq!(parse_battery_level("no battery here"), None);
         assert_eq!(parse_battery_level(""), None);
+    }
+
+    const IMEI_OUTPUT: &str = "Result: Parcel(\n  0x00000000: 00000000 0000000f 00360038 00390038 '........8.6.8.9.'\n  0x00000010: 00360037 00350030 00370033 00370035 '7.6.0.5.3.7.5.7.'\n  0x00000020: 00330030 00000037                   '0.3.7...        ')\n";
+
+    #[test]
+    fn parse_imei_extracts_utf16_parcel_string() {
+        assert_eq!(parse_imei(IMEI_OUTPUT).as_deref(), Some("868976053757037"));
+    }
+
+    #[test]
+    fn parse_imei_returns_none_for_empty_or_garbage() {
+        assert_eq!(parse_imei(""), None);
+        assert_eq!(parse_imei("Result: Parcel(\n  0x00000000: ffffffff '........')\n"), None);
     }
 }
