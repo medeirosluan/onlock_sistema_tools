@@ -91,3 +91,13 @@ Esta operação usa o **protocolo fastboot AOSP** e funciona em aparelhos que o 
 - O caminho alternativo é o **mtkclient** (modo BROM/preloader), que modifica a partição `seccfg` do chip — porém é de baixo nível, exige timing manual da entrada em BROM, e tem **risco real de brick**. Em vários aparelhos (incluindo o POCO C31) o preloader é protegido e o handshake falha, exigindo DA proprietário (ferramentas comerciais).
 
 Antes de executar em um aparelho Xiaomi/MediaTek, verifique a compatibilidade. O app detecta e loga falhas do fastboot, mas a limitação é do fabricante.
+
+## Operação: Backup / Restauração de Dados
+
+Com um aparelho conectado (modo REAL), a seção "Operações" permite fazer backup dos dados do cliente antes de reparos:
+
+1. Clique em **Backup / Restauração**.
+2. Escolha as categorias (Fotos, Vídeos, Música, Downloads, Documentos, Contatos, SMS) e a pasta de destino no PC.
+3. Acompanhe o progresso e, se necessário, clique em **Cancelar** (o que já foi copiado é preservado).
+
+Limitações: restauração de SMS exige o app nativo/Google (sem root); contatos são importados via `.vcf` com confirmação no aparelho.
