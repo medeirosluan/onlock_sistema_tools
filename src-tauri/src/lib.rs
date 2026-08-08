@@ -26,7 +26,9 @@ pub fn run() {
             commands::restore_backup,
             commands::cancel_backup,
             commands::clear_logs,
-            commands::get_app_version
+            commands::get_app_version,
+            commands::format_userdata,
+            commands::reboot_bootloader_cmd
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

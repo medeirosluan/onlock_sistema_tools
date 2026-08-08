@@ -22,6 +22,21 @@ pub struct AdbStatusPayload {
     pub mode: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct FormatResult {
+    pub serial: String,
+    pub success: bool,
+    pub message: String,
+}
+
+fn format_result(serial: &str, success: bool, message: &str) -> FormatResult {
+    FormatResult {
+        serial: serial.to_string(),
+        success,
+        message: message.to_string(),
+    }
+}
+
 fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -180,6 +195,45 @@ pub async fn cancel_backup(flag: State<'_, CancelFlag>) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn reboot_bootloader_cmd(app: AppHandle, serial: String) -> Result<(), String> {
+    emit_log(&app, "info", &format!("Reiniciando {serial} em modo fastboot..."));
+    AdbController::reboot_bootloader(&app, &serial).await?;
+    emit_log(&app, "ok", &format!("{serial} reiniciado em fastboot."));
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn format_userdata(app: AppHandle, serial: String) -> Result<FormatResult, String> {
+    emit_log(&app, "info", &format!("Iniciando formatação do userdata em {serial}..."));
+
+    AdbController::reboot_bootloader(&app, &serial).await.map_err(|e| {
+        emit_log(&app, "error", &format!("Falha ao reiniciar em fastboot: {e}"));
+        format!("Falha ao reiniciar {serial} em fastboot: {e}")
+    })?;
+    emit_log(&app, "ok", "Aparelho reiniciado em modo fastboot.");
+
+    AdbController::wait_for_fastboot_device(&app, &serial).await.map_err(|e| {
+        emit_log(&app, "error", &format!("{e}"));
+        e
+    })?;
+    emit_log(&app, "ok", "Aparelho detectado em modo fastboot.");
+
+    AdbController::fastboot_long(&app, &serial, &["erase", "userdata"]).await.map_err(|e| {
+        emit_log(&app, "error", &format!("Falha ao apagar userdata: {e}"));
+        format!("Falha ao apagar userdata em {serial}: {e}")
+    })?;
+    emit_log(&app, "ok", "Partição userdata apagada.");
+
+    AdbController::fastboot_reboot(&app, &serial).await.map_err(|e| {
+        emit_log(&app, "error", &format!("Falha ao reiniciar: {e}"));
+        format!("Falha ao reiniciar {serial}: {e}")
+    })?;
+    emit_log(&app, "ok", &format!("{serial} reiniciado após formatação."));
+
+    Ok(format_result(&serial, true, "Userdata formatado com sucesso"))
+}
+
+#[tauri::command]
 pub fn clear_logs(app: AppHandle) -> Result<(), String> {
     app.emit("logs-cleared", ()).map_err(|e| e.to_string())
 }
@@ -187,4 +241,24 @@ pub fn clear_logs(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn format_result_assembles_success() {
+        let r = format_result("ROJNKFZ57XJFD6N7", true, "Userdata formatado com sucesso");
+        assert_eq!(r.serial, "ROJNKFZ57XJFD6N7");
+        assert!(r.success);
+        assert_eq!(r.message, "Userdata formatado com sucesso");
+    }
+
+    #[test]
+    fn format_result_assembles_failure() {
+        let r = format_result("ROJNKFZ57XJFD6N7", false, "Falha ao apagar userdata");
+        assert!(!r.success);
+        assert_eq!(r.message, "Falha ao apagar userdata");
+    }
 }
