@@ -43,3 +43,18 @@ Comandos novos:
 - `list_devices()` — lista dispositivos via `adb devices -l`.
 - `start_adb_server()` — inicia o adb server.
 - `detect_device(serial, platform)` — lê propriedades reais (getprop) do dispositivo.
+
+## Operação: Remoção de FRP
+
+Com um aparelho conectado (modo REAL), a seção "Operações" do painel permite remover o bloqueio de conta (FRP):
+
+1. Clique em **Remover FRP**.
+2. Revise o aparelho e os comandos exibidos e clique em **Confirmar**.
+3. Acompanhe o progresso no console de logs.
+4. Ao final, clique em **Reiniciar aparelho** para aplicar.
+
+Comandos executados:
+
+- `settings put global device_provisioned 1`
+- `settings put secure user_setup_complete 1`
+- `pm clear com.google.android.gms`
