@@ -168,7 +168,9 @@ export function DevicePanel({ platform, device, loading, error, mode, onDetect }
 
           {bootResult?.success ? (
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm text-log-ok">Bootloader desbloqueado — reinicie o aparelho.</p>
+              <p className="text-sm text-log-ok">
+                {bootResult.message || "Bootloader desbloqueado — reinicie o aparelho."}
+              </p>
               <button
                 onClick={() => bootReboot(device.serial)}
                 className="rounded border border-border px-3 py-1.5 text-sm text-fg hover:bg-border"

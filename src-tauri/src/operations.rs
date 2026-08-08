@@ -133,13 +133,13 @@ pub struct BootloaderStep {
 pub fn bootloader_steps() -> Vec<BootloaderStep> {
     vec![
         BootloaderStep {
-            id: "verify",
-            description: "Verificando estado do bootloader",
+            id: "fastboot",
+            description: "Entrando em modo fastboot",
             essential: true,
         },
         BootloaderStep {
-            id: "fastboot",
-            description: "Entrando em modo fastboot",
+            id: "verify",
+            description: "Verificando estado do bootloader",
             essential: true,
         },
         BootloaderStep {
@@ -193,7 +193,9 @@ impl BootloaderUnlocker {
             }
 
             let result = match step.id {
+                "fastboot" => AdbController::reboot_bootloader(app, serial).await.map(|_| String::new()),
                 "verify" => {
+                    tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
                     let out = AdbController::fastboot(app, serial, &["getvar", "unlocked"]).await;
                     if let Ok(ref out) = out {
                         if is_bootloader_unlocked(out) {
@@ -208,25 +210,25 @@ impl BootloaderUnlocker {
                     }
                     out
                 }
-                "fastboot" => AdbController::reboot_bootloader(app, serial).await.map(|_| String::new()),
                 "unlock" => {
-                    match AdbController::fastboot(app, serial, &["flashing", "unlock"]).await {
+                    emit_log(app, "info", "Se o aparelho solicitar, confirme o desbloqueio na tela do aparelho.");
+                    match AdbController::fastboot_long(app, serial, &["flashing", "unlock"]).await {
                         Ok(o) => Ok(o),
                         Err(first_err) => {
                             emit_log(app, "warn", &format!("flashing unlock falhou, tentando oem unlock: {first_err}"));
-                            AdbController::fastboot(app, serial, &["oem", "unlock"]).await
+                            AdbController::fastboot_long(app, serial, &["oem", "unlock"]).await
                         }
                     }
                 }
                 "confirm" => {
                     tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
-                    let out = AdbController::fastboot(app, serial, &["getvar", "unlocked"]).await;
-                    if let Ok(ref out) = out {
-                        if is_bootloader_unlocked(out) {
-                            emit_log(app, "ok", "Bootloader confirmado como desbloqueado.");
-                        }
+                    let out = AdbController::fastboot(app, serial, &["getvar", "unlocked"]).await?;
+                    if is_bootloader_unlocked(&out) {
+                        emit_log(app, "ok", "Bootloader confirmado como desbloqueado.");
+                        Ok(String::new())
+                    } else {
+                        Err("bootloader ainda não está desbloqueado".to_string())
                     }
-                    Ok(String::new())
                 }
                 _ => continue,
             };
@@ -291,8 +293,8 @@ mod tests {
     fn bootloader_steps_has_five_ptbr_steps() {
         let steps = bootloader_steps();
         assert_eq!(steps.len(), 5);
-        assert_eq!(steps[0].id, "verify");
-        assert_eq!(steps[1].id, "fastboot");
+        assert_eq!(steps[0].id, "fastboot");
+        assert_eq!(steps[1].id, "verify");
         assert_eq!(steps[2].id, "unlock");
         assert_eq!(steps[3].id, "confirm");
         assert_eq!(steps[4].id, "done");

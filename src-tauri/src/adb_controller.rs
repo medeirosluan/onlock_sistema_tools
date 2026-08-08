@@ -61,6 +61,12 @@ impl AdbController {
         Self::run_fastboot(app, &full_args).await
     }
 
+    pub async fn fastboot_long(app: &AppHandle, serial: &str, args: &[&str]) -> Result<String, String> {
+        let mut full_args = vec!["-s", serial];
+        full_args.extend_from_slice(args);
+        Self::run_fastboot_timeout(app, &full_args, Duration::from_secs(60)).await
+    }
+
     pub async fn fastboot_reboot(app: &AppHandle, serial: &str) -> Result<(), String> {
         Self::run_fastboot(app, &["-s", serial, "reboot"]).await?;
         Ok(())
@@ -91,17 +97,18 @@ impl AdbController {
     }
 
     async fn run_fastboot(app: &AppHandle, args: &[&str]) -> Result<String, String> {
+        Self::run_fastboot_timeout(app, args, Duration::from_secs(15)).await
+    }
+
+    async fn run_fastboot_timeout(app: &AppHandle, args: &[&str], timeout: Duration) -> Result<String, String> {
         let command = app
             .shell()
             .sidecar("fastboot")
             .map_err(|e| format!("Erro ao resolver sidecar fastboot: {e}"))?;
-        let output = tokio::time::timeout(
-            Duration::from_secs(15),
-            command.args(args).output(),
-        )
-        .await
-        .map_err(|_| "fastboot não respondeu dentro de 15 segundos".to_string())?
-        .map_err(|e| format!("Erro ao executar fastboot: {e}"))?;
+        let output = tokio::time::timeout(timeout, command.args(args).output())
+            .await
+            .map_err(|_| "fastboot não respondeu dentro do tempo limite".to_string())?
+            .map_err(|e| format!("Erro ao executar fastboot: {e}"))?;
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let message = if stderr.trim().is_empty() {
