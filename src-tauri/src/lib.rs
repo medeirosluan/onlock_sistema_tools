@@ -28,7 +28,11 @@ pub fn run() {
             commands::clear_logs,
             commands::get_app_version,
             commands::format_userdata,
-            commands::reboot_bootloader_cmd
+            commands::reboot_bootloader_cmd,
+            commands::check_frp_status,
+            commands::list_apps,
+            commands::manage_apps,
+            commands::device_health
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

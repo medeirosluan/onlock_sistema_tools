@@ -308,6 +308,144 @@ pub async fn format_userdata(app: AppHandle, serial: String) -> Result<FormatRes
 }
 
 #[tauri::command]
+pub async fn check_frp_status(app: AppHandle, serial: String) -> Result<FrpStatus, String> {
+    let frp_value = AdbController::getprop(&app, &serial, "ro.frp.pst")
+        .await
+        .unwrap_or_default();
+    let oem_value = AdbController::getprop(&app, &serial, "sys.oem_unlock_allowed")
+        .await
+        .unwrap_or_default();
+    let frp_blocked = parse_frp_pst(&frp_value);
+    let oem_unlock_allowed = parse_boolean(&oem_value);
+
+    if frp_blocked {
+        emit_log(&app, "warn", &format!("FRP presente no dispositivo {serial}."));
+        Ok(FrpStatus {
+            frp_blocked,
+            oem_unlock_allowed,
+            message: "FRP presente — aparelho não está limpo para revenda".to_string(),
+        })
+    } else {
+        emit_log(&app, "ok", &format!("FRP limpo no dispositivo {serial}."));
+        Ok(FrpStatus {
+            frp_blocked,
+            oem_unlock_allowed,
+            message: "FRP limpo — aparelho pronto para revenda".to_string(),
+        })
+    }
+}
+
+#[tauri::command]
+pub async fn list_apps(app: AppHandle, serial: String) -> Result<Vec<AppInfo>, String> {
+    let user = AdbController::run_shell(&app, &serial, &["pm", "list", "packages", "-3"])
+        .await
+        .unwrap_or_default();
+    let system = AdbController::run_shell(&app, &serial, &["pm", "list", "packages", "-s"])
+        .await
+        .unwrap_or_default();
+    let disabled = AdbController::run_shell(&app, &serial, &["pm", "list", "packages", "-d"])
+        .await
+        .unwrap_or_default();
+
+    let mut combined = String::new();
+    combined.push_str("SYSTEM_APPS\n");
+    combined.push_str(&system);
+    combined.push_str("USER_APPS\n");
+    combined.push_str(&user);
+    combined.push_str("DISABLED_APPS\n");
+    combined.push_str(&disabled);
+
+    let apps = parse_apps(&combined);
+    Ok(apps)
+}
+
+#[tauri::command]
+pub async fn manage_apps(
+    app: AppHandle,
+    serial: String,
+    packages: Vec<String>,
+    action: String,
+) -> Result<ManageAppsResult, String> {
+    let mut processed = 0usize;
+    let mut failed = Vec::new();
+
+    for pkg in &packages {
+        let args: &[&str] = match action.as_str() {
+            "disable" => &["pm", "disable-user", "--user", "0", pkg],
+            "uninstall" => &["pm", "uninstall", "--user", "0", pkg],
+            _ => return Err(format!("Ação inválida: {action}. Use 'disable' ou 'uninstall'.")),
+        };
+        match AdbController::run_shell(&app, &serial, args).await {
+            Ok(_) => {
+                processed += 1;
+                emit_log(&app, "ok", &format!("{action}: {pkg}"));
+            }
+            Err(e) => {
+                failed.push(pkg.clone());
+                emit_log(&app, "warn", &format!("{action} falhou em {pkg}: {e}"));
+            }
+        }
+    }
+
+    let failed_count = failed.len();
+    Ok(ManageAppsResult {
+        processed,
+        failed,
+        message: format!("{action}: {processed} processados, {failed_count} falhas"),
+    })
+}
+
+#[tauri::command]
+pub async fn device_health(app: AppHandle, serial: String) -> Result<DeviceHealth, String> {
+    let model = AdbController::getprop(&app, &serial, "ro.product.model")
+        .await
+        .unwrap_or_default();
+    let android_version = AdbController::getprop(&app, &serial, "ro.build.version.release")
+        .await
+        .unwrap_or_default();
+    let build = AdbController::getprop(&app, &serial, "ro.build.display.id")
+        .await
+        .unwrap_or_default();
+    let imei = AdbController::imei(&app, &serial)
+        .await
+        .unwrap_or(None)
+        .unwrap_or_default();
+    let battery = AdbController::battery_level(&app, &serial)
+        .await
+        .unwrap_or(None)
+        .unwrap_or(0);
+    let frp_value = AdbController::getprop(&app, &serial, "ro.frp.pst")
+        .await
+        .unwrap_or_default();
+    let df = AdbController::run_shell(&app, &serial, &["df", "-h", "/data"])
+        .await
+        .unwrap_or_default();
+
+    let (total_storage, free_storage) = parse_df(&df);
+
+    Ok(DeviceHealth {
+        model,
+        imei,
+        android_version,
+        build,
+        total_storage,
+        free_storage,
+        battery,
+        frp_blocked: parse_frp_pst(&frp_value),
+    })
+}
+
+fn parse_df(output: &str) -> (String, String) {
+    for line in output.lines().skip(1) {
+        let fields: Vec<&str> = line.split_whitespace().collect();
+        if fields.len() >= 4 {
+            return (fields[1].to_string(), fields[3].to_string());
+        }
+    }
+    (String::new(), String::new())
+}
+
+#[tauri::command]
 pub fn clear_logs(app: AppHandle) -> Result<(), String> {
     app.emit("logs-cleared", ()).map_err(|e| e.to_string())
 }
