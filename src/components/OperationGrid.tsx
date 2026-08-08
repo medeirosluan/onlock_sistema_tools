@@ -21,14 +21,16 @@ export function OperationGrid({ platform, serial, onReadInfo, onEraseFrp }: Prop
   const [formatOpen, setFormatOpen] = useState(false);
   const [rebooting, setRebooting] = useState(false);
   const [formatting, setFormatting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleReboot = async () => {
     setRebootOpen(false);
+    setError(null);
     setRebooting(true);
     try {
       await rebootBootloader(serial);
-    } catch {
-      // Erro já registrado pelo backend via log.
+    } catch (e) {
+      setError(String(e));
     } finally {
       setRebooting(false);
     }
@@ -36,31 +38,38 @@ export function OperationGrid({ platform, serial, onReadInfo, onEraseFrp }: Prop
 
   const handleFormat = async () => {
     setFormatOpen(false);
+    setError(null);
     setFormatting(true);
     try {
       await formatUserdata(serial);
-    } catch {
-      // Erro já registrado pelo backend via log.
+    } catch (e) {
+      setError(String(e));
     } finally {
       setFormatting(false);
     }
   };
 
-  const button =
+  const busy = rebooting || formatting;
+  const buttonClass =
     "flex flex-col items-center justify-center gap-1 rounded border border-border bg-panel p-4 text-sm hover:bg-border disabled:opacity-50";
 
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <button onClick={onReadInfo} className={button}>
+      {error && (
+        <div className="rounded border border-log-error/40 bg-log-error/10 px-3 py-2 text-sm text-log-error">
+          {error}
+        </div>
+      )}
+      <button onClick={onReadInfo} disabled={busy} className={buttonClass}>
         <span className={ACCENT[platform]}>Read Info</span>
       </button>
-      <button onClick={onEraseFrp} className={button}>
+      <button onClick={onEraseFrp} disabled={busy} className={buttonClass}>
         <span className={ACCENT[platform]}>Erase FRP</span>
       </button>
-      <button onClick={() => setRebootOpen(true)} disabled={rebooting} className={button}>
+      <button onClick={() => setRebootOpen(true)} disabled={busy} className={buttonClass}>
         <span className={ACCENT[platform]}>{rebooting ? "Reiniciando..." : "Reboot Fastboot"}</span>
       </button>
-      <button onClick={() => setFormatOpen(true)} disabled={formatting} className={button}>
+      <button onClick={() => setFormatOpen(true)} disabled={busy} className={buttonClass}>
         <span className={ACCENT[platform]}>{formatting ? "Formatando..." : "Format Userdata"}</span>
       </button>
 

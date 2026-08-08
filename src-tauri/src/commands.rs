@@ -197,7 +197,10 @@ pub async fn cancel_backup(flag: State<'_, CancelFlag>) -> Result<(), String> {
 #[tauri::command]
 pub async fn reboot_bootloader_cmd(app: AppHandle, serial: String) -> Result<(), String> {
     emit_log(&app, "info", &format!("Reiniciando {serial} em modo fastboot..."));
-    AdbController::reboot_bootloader(&app, &serial).await?;
+    AdbController::reboot_bootloader(&app, &serial).await.map_err(|e| {
+        emit_log(&app, "error", &format!("Falha ao reiniciar em fastboot: {e}"));
+        format!("Falha ao reiniciar {serial} em fastboot: {e}")
+    })?;
     emit_log(&app, "ok", &format!("{serial} reiniciado em fastboot."));
     Ok(())
 }
