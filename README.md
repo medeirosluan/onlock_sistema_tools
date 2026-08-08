@@ -101,3 +101,14 @@ Com um aparelho conectado (modo REAL), a seção "Operações" permite fazer bac
 3. Acompanhe o progresso e, se necessário, clique em **Cancelar** (o que já foi copiado é preservado).
 
 Limitações: contatos e SMS são salvos como dump de texto (não importável diretamente); restauração de SMS/contatos exige o app nativo do aparelho. Mídia é restaurada via push.
+
+## Grid de Operações (Xiaomi/MTK)
+
+Nas abas **Xiaomi** e **MTK**, a área central exibe um grid com 4 botões:
+
+- **Read Info** — lê as informações do aparelho (via `detect_device`).
+- **Erase FRP** — executa a remoção de FRP (confirmação obrigatória).
+- **Reboot Fastboot** — reinicia o aparelho em modo fastboot.
+- **Format Userdata** — apaga a partição userdata via fastboot (apaga os dados; confirmação obrigatória).
+
+O status do topo (dispositivos conectados) é atualizado automaticamente a cada 3 segundos (polling USB).
