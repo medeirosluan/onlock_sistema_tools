@@ -28,5 +28,12 @@ export function useFlash() {
     }
   };
 
-  return { running, progress, result, error, run };
+  const reset = () => {
+    setRunning(false);
+    setProgress(null);
+    setResult(null);
+    setError(null);
+  };
+
+  return { running, progress, result, error, run, reset };
 }

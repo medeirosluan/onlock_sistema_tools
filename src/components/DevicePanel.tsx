@@ -72,7 +72,14 @@ export function DevicePanel({ platform, device, loading, error, mode, connection
   const [flashUrl, setFlashUrl] = useState("");
   const [flashPartition, setFlashPartition] = useState("");
   const [flashConfirmOpen, setFlashConfirmOpen] = useState(false);
-  const { running: flashRunning, progress: flashProgress, result: flashResult, error: flashError, run: flashRun } = useFlash();
+  const {
+    running: flashRunning,
+    progress: flashProgress,
+    result: flashResult,
+    error: flashError,
+    run: flashRun,
+    reset: resetFlash,
+  } = useFlash();
 
   const pickFolder = async () => {
     const dir = await open({ directory: true });
@@ -204,7 +211,10 @@ export function DevicePanel({ platform, device, loading, error, mode, connection
             {fastbootDetecting ? "Verificando..." : "Detectar estado"}
           </button>
           <button
-            onClick={() => setFlashOpen(true)}
+            onClick={() => {
+              resetFlash();
+              setFlashOpen(true);
+            }}
             className="rounded border border-border bg-panel p-4 text-sm text-fg hover:bg-border"
           >
             Flash Firmware
@@ -585,7 +595,10 @@ export function DevicePanel({ platform, device, loading, error, mode, connection
             )}
             <div className="mt-4 flex justify-end gap-2">
               <button
-                onClick={() => setFlashOpen(false)}
+                onClick={() => {
+                  setFlashOpen(false);
+                  resetFlash();
+                }}
                 className="rounded border border-border px-3 py-1.5 text-sm text-fg hover:bg-border"
               >
                 Cancelar
@@ -671,7 +684,30 @@ export function DevicePanel({ platform, device, loading, error, mode, connection
             )}
             <div className="mt-4 flex justify-end">
               <button
-                onClick={() => setFlashOpen(false)}
+                onClick={() => {
+                  setFlashOpen(false);
+                  resetFlash();
+                }}
+                className="rounded border border-border px-3 py-1.5 text-sm text-fg hover:bg-border"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {flashError && !flashRunning && !flashResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded border border-border bg-panel p-4">
+            <h3 className="text-sm font-semibold text-fg">Falha no flash</h3>
+            <p className="mt-2 text-sm text-log-error">{flashError}</p>
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => {
+                  setFlashOpen(false);
+                  resetFlash();
+                }}
                 className="rounded border border-border px-3 py-1.5 text-sm text-fg hover:bg-border"
               >
                 Fechar
