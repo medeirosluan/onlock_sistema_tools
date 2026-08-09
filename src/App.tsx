@@ -20,7 +20,7 @@ export default function App() {
   const { devices } = useDevices();
   const { logs, clear } = useLogs();
   const status = useAdbStatus();
-  const { mode: connectionMode, device: connectionDevice } = useConnectionMode();
+  const { mode: connectionMode, device: connectionDevice, serial: connectionSerial } = useConnectionMode();
 
   const onlineDevices = devices.filter((d) => d.state === "device");
 
@@ -72,6 +72,7 @@ export default function App() {
         error={error}
         mode={status.mode}
         connectionMode={connectionMode}
+        connectionSerial={connectionSerial}
         onDetect={handleDetect}
       />
       <LogConsole logs={logs} onClear={clear} />

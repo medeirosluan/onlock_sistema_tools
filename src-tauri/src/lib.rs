@@ -22,6 +22,7 @@ pub fn run() {
             commands::reboot_device,
             commands::unlock_bootloader,
             commands::fastboot_reboot,
+            commands::fastboot_getvar,
             commands::run_backup,
             commands::restore_backup,
             commands::cancel_backup,

@@ -3,7 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useFrp } from "../hooks/useFrp";
 import { useBootloader } from "../hooks/useBootloader";
 import { useBackup } from "../hooks/useBackup";
-import { formatUserdata, fastbootReboot, rebootBootloader, unlockBootloader } from "../lib/ipc";
+import { fastbootGetvar, formatUserdata, fastbootReboot, rebootBootloader } from "../lib/ipc";
 import type { ConnectionMode, DeviceInfo, Platform } from "../types";
 import { OperationGrid } from "./OperationGrid";
 
@@ -14,6 +14,7 @@ interface Props {
   error: string | null;
   mode: "real" | "sim";
   connectionMode: ConnectionMode;
+  connectionSerial: string | null;
   onDetect: () => void;
 }
 
@@ -37,7 +38,7 @@ const BOOTLOADER_COMMANDS = [
   "fastboot oem unlock",
 ];
 
-export function DevicePanel({ platform, device, loading, error, mode, connectionMode, onDetect }: Props) {
+export function DevicePanel({ platform, device, loading, error, mode, connectionMode, connectionSerial, onDetect }: Props) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [bootConfirmOpen, setBootConfirmOpen] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
@@ -107,17 +108,24 @@ export function DevicePanel({ platform, device, loading, error, mode, connection
   };
 
   const handleMtpReboot = async () => {
+    if (!connectionSerial) {
+      setMtpGuideOpen(true);
+      return;
+    }
     try {
-      await rebootBootloader(device!.serial);
+      await rebootBootloader(connectionSerial);
     } catch {
       setMtpGuideOpen(true);
     }
   };
 
   const handleFastbootGetvar = async () => {
+    if (!connectionSerial) return;
     setFastbootDetecting(true);
     try {
-      await unlockBootloader(device!.serial);
+      const result = await fastbootGetvar(connectionSerial, "unlocked");
+      // resultado vai para o console de logs via backend; sem banner nesta fase
+      void result;
     } catch {
       // erro já logado pelo backend
     } finally {
@@ -177,7 +185,7 @@ export function DevicePanel({ platform, device, loading, error, mode, connection
             Format Userdata
           </button>
           <button
-            onClick={() => fastbootReboot(device?.serial ?? "")}
+            onClick={() => fastbootReboot(connectionSerial ?? "")}
             className="rounded border border-border bg-panel p-4 text-sm text-fg hover:bg-border"
           >
             Reboot
@@ -381,12 +389,12 @@ export function DevicePanel({ platform, device, loading, error, mode, connection
         </div>
       )}
 
-      {formatOpen && device && (
+      {formatOpen && connectionSerial && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
           <div className="w-full max-w-md rounded border border-border bg-panel p-4">
             <h3 className="text-sm font-semibold text-fg">Confirmar formatação do userdata</h3>
             <p className="mt-2 text-sm text-muted">
-              Dispositivo: <span className="font-mono text-fg">{device.serial}</span>
+              Dispositivo: <span className="font-mono text-fg">{connectionSerial}</span>
             </p>
             <p className="mt-2 text-sm text-log-warn">
               Esta operação apaga todos os dados do usuário do aparelho.
@@ -401,7 +409,7 @@ export function DevicePanel({ platform, device, loading, error, mode, connection
               <button
                 onClick={() => {
                   setFormatOpen(false);
-                  formatUserdata(device.serial);
+                  formatUserdata(connectionSerial);
                 }}
                 className="rounded bg-log-error px-3 py-1.5 text-sm text-white hover:opacity-80"
               >

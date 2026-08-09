@@ -233,6 +233,13 @@ pub async fn fastboot_reboot(app: AppHandle, serial: String) -> Result<(), Strin
 }
 
 #[tauri::command]
+pub async fn fastboot_getvar(app: AppHandle, serial: String, key: String) -> Result<String, String> {
+    emit_log(&app, "info", &format!("Lendo estado fastboot ({key}) de {serial}..."));
+    let output = AdbController::fastboot(&app, &serial, &["getvar", &key]).await?;
+    Ok(output)
+}
+
+#[tauri::command]
 pub async fn run_backup(
     app: AppHandle,
     flag: State<'_, CancelFlag>,
@@ -544,14 +551,17 @@ fn get_wpd_devices() -> Vec<UsbDevice> {
 pub async fn detect_connection_mode(app: AppHandle) -> Result<ConnectionInfo, String> {
     let adb_output = AdbController::list_devices(&app)
         .await
-        .map_err(|e| format!("Falha ao verificar ADB: {e}"))?;
+        .unwrap_or_else(|e| {
+            emit_log(&app, "warn", &format!("ADB indisponível, verificando outros modos: {e}"));
+            Vec::new()
+        });
     let adb_text = adb_output
         .iter()
         .map(|d| format!("{}\t{}", d.serial, d.state))
         .collect::<Vec<_>>()
         .join("\n");
 
-    let fastboot_text = AdbController::fastboot(&app, "", &["devices"])
+    let fastboot_text = AdbController::fastboot_devices(&app)
         .await
         .unwrap_or_default();
 
@@ -568,9 +578,7 @@ pub async fn detect_connection_mode(app: AppHandle) -> Result<ConnectionInfo, St
         ConnectionMode::Mtp => {
             emit_log(&app, "warn", &format!("Modo MTP: {:?}", info.device));
         }
-        ConnectionMode::None => {
-            emit_log(&app, "info", "Nenhum aparelho detectado.");
-        }
+        ConnectionMode::None => {}
     }
     Ok(info)
 }

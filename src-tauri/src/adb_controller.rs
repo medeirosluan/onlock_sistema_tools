@@ -81,6 +81,10 @@ impl AdbController {
         Ok(())
     }
 
+    pub async fn fastboot_devices(app: &AppHandle) -> Result<String, String> {
+        Self::run_fastboot(app, &["devices"]).await
+    }
+
     pub async fn wait_for_fastboot_device(app: &AppHandle, serial: &str) -> Result<(), String> {
         let deadline = Duration::from_secs(30);
         let started = std::time::Instant::now();

@@ -37,6 +37,9 @@ export const unlockBootloader = (serial: string): Promise<BootloaderResult> =>
 export const fastbootReboot = (serial: string): Promise<void> =>
   invoke("fastboot_reboot", { serial });
 
+export const fastbootGetvar = (serial: string, key: string): Promise<string> =>
+  invoke<string>("fastboot_getvar", { serial, key });
+
 export const runBackup = (
   serial: string,
   categories: BackupCategory[],
