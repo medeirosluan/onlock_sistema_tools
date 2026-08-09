@@ -93,3 +93,12 @@ export interface ManageAppsResult {
   failed: string[];
   message: string;
 }
+
+export type ConnectionMode = "Adb" | "Fastboot" | "Mtp" | "None";
+
+export interface ConnectionInfo {
+  mode: ConnectionMode;
+  device: string | null;
+  serial: string | null;
+  detail: string;
+}

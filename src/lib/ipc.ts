@@ -1,6 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { AdbDevice, AdbStatus, AppInfo, BackupCategory, BackupProgress, BackupResult, BootloaderResult, DeviceInfo, FormatResult, FrpResult, FrpStatus, LogEntry, ManageAppsResult } from "../types";
+import type { AdbDevice, AdbStatus, AppInfo, BackupCategory, BackupProgress, BackupResult, BootloaderResult, ConnectionInfo, DeviceInfo, FormatResult, FrpResult, FrpStatus, LogEntry, ManageAppsResult } from "../types";
+
+export const detectConnectionMode = (): Promise<ConnectionInfo> =>
+  invoke<ConnectionInfo>("detect_connection_mode");
 
 export const detectDevice = (serial: string, platform: string): Promise<DeviceInfo> =>
   invoke<DeviceInfo>("detect_device", { serial, platform });
