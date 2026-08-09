@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { AdbDevice, AdbStatus, AppInfo, BackupCategory, BackupProgress, BackupResult, BootloaderResult, ConnectionInfo, DeviceInfo, FormatResult, FrpResult, FrpStatus, LogEntry, ManageAppsResult } from "../types";
+import type { AdbDevice, AdbStatus, AppInfo, BackupCategory, BackupProgress, BackupResult, BootloaderResult, ConnectionInfo, DeviceInfo, FlashProgress, FlashResult, FormatResult, FrpResult, FrpStatus, LogEntry, ManageAppsResult } from "../types";
 
 export const detectConnectionMode = (): Promise<ConnectionInfo> =>
   invoke<ConnectionInfo>("detect_connection_mode");
@@ -74,3 +74,12 @@ export const manageApps = (
   packages: string[],
   action: "disable" | "uninstall",
 ): Promise<ManageAppsResult> => invoke<ManageAppsResult>("manage_apps", { serial, packages, action });
+
+export const flashFirmware = (
+  serial: string,
+  url: string,
+  partition?: string,
+): Promise<FlashResult> => invoke<FlashResult>("flash_firmware", { serial, url, partition });
+
+export const onFlashProgress = (cb: (p: FlashProgress) => void): Promise<() => void> =>
+  listen<FlashProgress>("flash-progress", (event) => cb(event.payload));

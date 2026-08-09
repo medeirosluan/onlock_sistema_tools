@@ -102,3 +102,17 @@ export interface ConnectionInfo {
   serial: string | null;
   detail: string;
 }
+
+export interface FlashProgress {
+  phase: string;
+  message: string;
+  percent: number;
+}
+
+export interface FlashResult {
+  serial: string;
+  partition: string;
+  file: string;
+  success: boolean;
+  message: string;
+}
