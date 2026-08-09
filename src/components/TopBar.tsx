@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { getAppVersion } from "../lib/ipc";
-import type { AdbStatus, ConnectionMode } from "../types";
+import type { ConnectionMode } from "../types";
 
 interface Props {
-  status: AdbStatus;
   deviceCount: number;
   mode: ConnectionMode;
   deviceName: string | null;
@@ -24,8 +23,9 @@ const MODE_LABEL: Record<ConnectionMode, string> = {
   None: "",
 };
 
-export function TopBar({ status, deviceCount, mode, deviceName, onRefresh }: Props) {
+export function TopBar({ deviceCount, mode, deviceName, onRefresh }: Props) {
   const [version, setVersion] = useState("0.1.0");
+  const connected = mode !== "None";
 
   useEffect(() => {
     getAppVersion().then(setVersion).catch(() => {});
@@ -46,9 +46,9 @@ export function TopBar({ status, deviceCount, mode, deviceName, onRefresh }: Pro
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
           <span
-            className={`h-2.5 w-2.5 rounded-full ${status.connected ? "bg-log-ok" : "bg-muted"}`}
+            className={`h-2.5 w-2.5 rounded-full ${connected ? "bg-log-ok" : "bg-muted"}`}
           />
-          <span className="text-sm text-fg">{status.connected ? "Conectado" : "Desconectado"}</span>
+          <span className="text-sm text-fg">{connected ? "Conectado" : "Desconectado"}</span>
         </div>
         <span className="hidden text-sm text-muted md:inline">
           {deviceCount === 0

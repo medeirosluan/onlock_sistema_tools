@@ -58,7 +58,6 @@ export default function App() {
   return (
     <div className="flex h-screen flex-col bg-bg text-fg">
       <TopBar
-        status={status}
         deviceCount={onlineDevices.length}
         mode={connectionMode}
         deviceName={connectionDevice}
