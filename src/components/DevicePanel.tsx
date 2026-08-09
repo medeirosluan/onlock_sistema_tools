@@ -3,6 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useFrp } from "../hooks/useFrp";
 import { useBootloader } from "../hooks/useBootloader";
 import { useBackup } from "../hooks/useBackup";
+import { formatUserdata, fastbootReboot, rebootBootloader, unlockBootloader } from "../lib/ipc";
 import type { ConnectionMode, DeviceInfo, Platform } from "../types";
 import { OperationGrid } from "./OperationGrid";
 
@@ -36,9 +37,12 @@ const BOOTLOADER_COMMANDS = [
   "fastboot oem unlock",
 ];
 
-export function DevicePanel({ platform, device, loading, error, mode, connectionMode: _connectionMode, onDetect }: Props) {
+export function DevicePanel({ platform, device, loading, error, mode, connectionMode, onDetect }: Props) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [bootConfirmOpen, setBootConfirmOpen] = useState(false);
+  const [formatOpen, setFormatOpen] = useState(false);
+  const [mtpGuideOpen, setMtpGuideOpen] = useState(false);
+  const [fastbootDetecting, setFastbootDetecting] = useState(false);
   const { running, result, error: frpError, setConfirming, run, reboot } = useFrp();
   const {
     running: bootRunning,
@@ -102,6 +106,25 @@ export function DevicePanel({ platform, device, loading, error, mode, connection
     setConfirmOpen(true);
   };
 
+  const handleMtpReboot = async () => {
+    try {
+      await rebootBootloader(device!.serial);
+    } catch {
+      setMtpGuideOpen(true);
+    }
+  };
+
+  const handleFastbootGetvar = async () => {
+    setFastbootDetecting(true);
+    try {
+      await unlockBootloader(device!.serial);
+    } catch {
+      // erro já logado pelo backend
+    } finally {
+      setFastbootDetecting(false);
+    }
+  };
+
   return (
     <section className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -143,6 +166,46 @@ export function DevicePanel({ platform, device, loading, error, mode, connection
         <p className="text-xs text-muted">
           ADB não encontrado — usando modo simulação. Rode <code className="text-fg">npm run download:adb</code> e reinicie.
         </p>
+      )}
+
+      {connectionMode === "Fastboot" && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <button
+            onClick={() => setFormatOpen(true)}
+            className="rounded border border-border bg-panel p-4 text-sm text-fg hover:bg-border"
+          >
+            Format Userdata
+          </button>
+          <button
+            onClick={() => fastbootReboot(device?.serial ?? "")}
+            className="rounded border border-border bg-panel p-4 text-sm text-fg hover:bg-border"
+          >
+            Reboot
+          </button>
+          <button
+            onClick={handleFastbootGetvar}
+            disabled={fastbootDetecting}
+            className="rounded border border-border bg-panel p-4 text-sm text-fg hover:bg-border disabled:opacity-50"
+          >
+            {fastbootDetecting ? "Verificando..." : "Detectar estado"}
+          </button>
+        </div>
+      )}
+
+      {connectionMode === "Mtp" && (
+        <div className="rounded border border-border bg-panel p-4">
+          <h3 className="text-sm font-semibold text-fg">Aparelho em modo MTP</h3>
+          <p className="mt-1 text-xs text-muted">
+            A Depuração USB está desativada. Ative-a nas Opções de Desenvolvedor para operações avançadas,
+            ou reinicie em modo fastboot.
+          </p>
+          <button
+            onClick={handleMtpReboot}
+            className="mt-3 rounded border border-border px-4 py-2 text-sm text-fg hover:bg-border"
+          >
+            Reboot Fastboot
+          </button>
+        </div>
       )}
 
       {device?.connected ? (
@@ -318,6 +381,37 @@ export function DevicePanel({ platform, device, loading, error, mode, connection
         </div>
       )}
 
+      {formatOpen && device && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded border border-border bg-panel p-4">
+            <h3 className="text-sm font-semibold text-fg">Confirmar formatação do userdata</h3>
+            <p className="mt-2 text-sm text-muted">
+              Dispositivo: <span className="font-mono text-fg">{device.serial}</span>
+            </p>
+            <p className="mt-2 text-sm text-log-warn">
+              Esta operação apaga todos os dados do usuário do aparelho.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setFormatOpen(false)}
+                className="rounded border border-border px-3 py-1.5 text-sm text-fg hover:bg-border"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  setFormatOpen(false);
+                  formatUserdata(device.serial);
+                }}
+                className="rounded bg-log-error px-3 py-1.5 text-sm text-white hover:opacity-80"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {backupOpen && device && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
           <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded border border-border bg-panel p-4">
@@ -436,6 +530,28 @@ export function DevicePanel({ platform, device, loading, error, mode, connection
                   {backupTab === "backup" ? "Iniciar backup" : "Restaurar"}
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {mtpGuideOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded border border-border bg-panel p-4">
+            <h3 className="text-sm font-semibold text-fg">Entrar em modo fastboot manualmente</h3>
+            <p className="mt-2 text-sm text-muted">Siga os passos no aparelho:</p>
+            <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-fg">
+              <li>Desligue o aparelho completamente.</li>
+              <li>Mantenha pressionado <strong>Volume Down + Power</strong> juntos.</li>
+              <li>Solte quando aparecer a tela de fastboot (robô deitado).</li>
+              <li>Conecte o cabo USB novamente.</li>
+            </ol>
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => setMtpGuideOpen(false)}
+                className="rounded border border-border px-3 py-1.5 text-sm text-fg hover:bg-border"
+              >
+                Fechar
+              </button>
             </div>
           </div>
         </div>
