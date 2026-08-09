@@ -21,18 +21,42 @@ pub struct FlashProgress {
     pub percent: u8,
 }
 
+struct TempFlashDir {
+    path: PathBuf,
+}
+
+impl TempFlashDir {
+    fn new(serial: &str) -> Result<Self, String> {
+        let path = std::env::temp_dir().join(format!("flash_{serial}"));
+        std::fs::create_dir_all(&path).map_err(|e| format!("Falha ao criar pasta temporária: {e}"))?;
+        Ok(Self { path })
+    }
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for TempFlashDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.path);
+    }
+}
+
 pub fn detect_partition_from_filename(filename: &str) -> Option<String> {
     let name = filename.rsplit(['/', '\\']).next().unwrap_or(filename);
-    let lower = name.to_lowercase();
+    let stem = name.split('.').next().unwrap_or(name);
+    let lower = stem.to_lowercase();
     let known = [
         "boot", "recovery", "vbmeta", "system", "vendor", "dtbo", "modem", "oem", "cache", "super",
     ];
     for part in known {
-        if lower == part
-            || lower.starts_with(&format!("{part}."))
-            || lower.starts_with(&format!("{part}_"))
-        {
+        if lower == part {
             return Some(part.to_string());
+        }
+        if let Some(base) = lower.strip_suffix("_a").or_else(|| lower.strip_suffix("_b")) {
+            if base == part {
+                return Some(part.to_string());
+            }
         }
     }
     None
@@ -65,9 +89,27 @@ pub async fn flash_from_url(
     url: &str,
     partition: Option<String>,
 ) -> Result<FlashResult, String> {
-    let dir = std::env::temp_dir().join(format!("flash_{serial}"));
-    std::fs::create_dir_all(&dir).map_err(|e| format!("Falha ao criar pasta temporária: {e}"))?;
-    let file_name = url.rsplit('/').next().unwrap_or("firmware.bin").to_string();
+    let temp = TempFlashDir::new(serial)?;
+    let dir = temp.path().to_path_buf();
+    let raw_name = url.rsplit('/').next().unwrap_or("firmware.bin");
+    let file_name = raw_name
+        .split(['?', '#'])
+        .next()
+        .unwrap_or("firmware.bin")
+        .to_string();
+    let file_name = if file_name.is_empty() {
+        "firmware.bin".to_string()
+    } else {
+        file_name
+    };
+    let is_safe = file_name
+        .chars()
+        .all(|c| !matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'));
+    let file_name = if is_safe {
+        file_name
+    } else {
+        "firmware.bin".to_string()
+    };
     let download_path = dir.join(&file_name);
     let is_zip = file_name.to_lowercase().ends_with(".zip");
 
@@ -77,6 +119,8 @@ pub async fn flash_from_url(
         .get(url)
         .send()
         .await
+        .map_err(|e| format!("Falha ao baixar {url}: {e}"))?
+        .error_for_status()
         .map_err(|e| format!("Falha ao baixar {url}: {e}"))?;
     let bytes = resp
         .bytes()
@@ -101,14 +145,18 @@ pub async fn flash_from_url(
             .map_err(|e| format!("Falha ao extrair ZIP: {e}"))?;
         emit_log(app, "ok", "ZIP extraído.");
 
-        let wanted = partition.clone().map(|p| format!("{p}.img"));
         let mut found = Vec::new();
         collect_img_files(&extract_dir, &extract_dir, &mut found);
         for f in found {
-            let stem = f.file_stem().and_then(|s| s.to_str()).unwrap_or_default();
-            if let Some(part) = detect_partition_from_filename(&stem) {
-                if wanted.is_none() || wanted.as_deref() == Some(&format!("{part}.img")) {
-                    parts.push((part, f.clone()));
+            let stem = f
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or_default()
+                .to_string();
+            if detect_partition_from_filename(&stem).is_some() {
+                let want = partition.clone().unwrap_or_default();
+                if want.is_empty() || want == stem {
+                    parts.push((stem, f.clone()));
                 }
             }
         }
@@ -137,14 +185,12 @@ pub async fn flash_from_url(
             }
             Err(e) => {
                 emit_log(app, "error", &format!("Falha ao flashar {part}: {e}"));
-                let _ = std::fs::remove_dir_all(&dir);
                 return Ok(flash_result(serial, part, &path.to_string_lossy(), false, &format!("Falha ao flashar {part}: {e}")));
             }
         }
     }
 
     emit_progress(app, "concluído", "Flash concluído", 100);
-    let _ = std::fs::remove_dir_all(&dir);
     Ok(flash_result(serial, &last_partition, &file_name, true, "Flash concluído com sucesso"))
 }
 
@@ -180,6 +226,17 @@ mod tests {
         assert_eq!(detect_partition_from_filename("random.txt"), None);
         assert_eq!(detect_partition_from_filename(""), None);
         assert_eq!(detect_partition_from_filename("scatter.txt"), None);
+    }
+
+    #[test]
+    fn rejects_vendor_boot_as_vendor() {
+        assert_eq!(detect_partition_from_filename("vendor_boot.img"), None);
+    }
+
+    #[test]
+    fn detects_slot_suffix_partitions() {
+        assert_eq!(detect_partition_from_filename("boot_a.img").as_deref(), Some("boot"));
+        assert_eq!(detect_partition_from_filename("boot_b.img").as_deref(), Some("boot"));
     }
 
     #[test]
