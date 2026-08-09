@@ -3,7 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useFrp } from "../hooks/useFrp";
 import { useBootloader } from "../hooks/useBootloader";
 import { useBackup } from "../hooks/useBackup";
-import type { DeviceInfo, Platform } from "../types";
+import type { ConnectionMode, DeviceInfo, Platform } from "../types";
 import { OperationGrid } from "./OperationGrid";
 
 interface Props {
@@ -12,6 +12,7 @@ interface Props {
   loading: boolean;
   error: string | null;
   mode: "real" | "sim";
+  connectionMode: ConnectionMode;
   onDetect: () => void;
 }
 
@@ -35,7 +36,7 @@ const BOOTLOADER_COMMANDS = [
   "fastboot oem unlock",
 ];
 
-export function DevicePanel({ platform, device, loading, error, mode, onDetect }: Props) {
+export function DevicePanel({ platform, device, loading, error, mode, connectionMode: _connectionMode, onDetect }: Props) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [bootConfirmOpen, setBootConfirmOpen] = useState(false);
   const { running, result, error: frpError, setConfirming, run, reboot } = useFrp();

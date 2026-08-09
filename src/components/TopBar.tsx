@@ -1,14 +1,30 @@
 import { useEffect, useState } from "react";
 import { getAppVersion } from "../lib/ipc";
-import type { AdbStatus } from "../types";
+import type { AdbStatus, ConnectionMode } from "../types";
 
 interface Props {
   status: AdbStatus;
   deviceCount: number;
+  mode: ConnectionMode;
+  deviceName: string | null;
   onRefresh: () => void;
 }
 
-export function TopBar({ status, deviceCount, onRefresh }: Props) {
+const MODE_STYLE: Record<ConnectionMode, string> = {
+  Adb: "bg-log-ok text-black",
+  Fastboot: "bg-accent-samsung text-white",
+  Mtp: "bg-log-warn text-black",
+  None: "bg-border text-muted",
+};
+
+const MODE_LABEL: Record<ConnectionMode, string> = {
+  Adb: "ADB",
+  Fastboot: "Fastboot",
+  Mtp: "MTP",
+  None: "",
+};
+
+export function TopBar({ status, deviceCount, mode, deviceName, onRefresh }: Props) {
   const [version, setVersion] = useState("0.1.0");
 
   useEffect(() => {
@@ -39,6 +55,14 @@ export function TopBar({ status, deviceCount, onRefresh }: Props) {
             ? "Nenhum dispositivo"
             : `${deviceCount} dispositivo${deviceCount > 1 ? "s" : ""}`}
         </span>
+        {mode !== "None" && (
+          <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${MODE_STYLE[mode]}`}>
+            {MODE_LABEL[mode]}
+          </span>
+        )}
+        {deviceName && mode !== "None" && (
+          <span className="hidden text-sm text-muted lg:inline">{deviceName}</span>
+        )}
         <div className="flex items-center gap-2">
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-border text-sm font-semibold text-fg">
             O

@@ -5,6 +5,7 @@ import { LogConsole } from "./components/LogConsole";
 import { ManufacturerTabs } from "./components/ManufacturerTabs";
 import { TopBar } from "./components/TopBar";
 import { useAdbStatus } from "./hooks/useAdbStatus";
+import { useConnectionMode } from "./hooks/useConnectionMode";
 import { useDevices } from "./hooks/useDevices";
 import { useLogs } from "./hooks/useLogs";
 import { detectDevice, listDevices } from "./lib/ipc";
@@ -19,6 +20,7 @@ export default function App() {
   const { devices } = useDevices();
   const { logs, clear } = useLogs();
   const status = useAdbStatus();
+  const { mode: connectionMode, device: connectionDevice } = useConnectionMode();
 
   const onlineDevices = devices.filter((d) => d.state === "device");
 
@@ -55,7 +57,13 @@ export default function App() {
 
   return (
     <div className="flex h-screen flex-col bg-bg text-fg">
-      <TopBar status={status} deviceCount={onlineDevices.length} onRefresh={handleDetect} />
+      <TopBar
+        status={status}
+        deviceCount={onlineDevices.length}
+        mode={connectionMode}
+        deviceName={connectionDevice}
+        onRefresh={handleDetect}
+      />
       <ManufacturerTabs active={activePlatform} onChange={setActivePlatform} />
       <DevicePanel
         platform={activePlatform}
@@ -63,6 +71,7 @@ export default function App() {
         loading={loading}
         error={error}
         mode={status.mode}
+        connectionMode={connectionMode}
         onDetect={handleDetect}
       />
       <LogConsole logs={logs} onClear={clear} />
