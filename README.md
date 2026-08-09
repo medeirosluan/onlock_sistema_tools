@@ -119,3 +119,11 @@ O grid de operações inclui 2 botões para preparar aparelhos para revenda:
 
 - **Check FRP** — verifica se o FRP está limpo (ro.frp.pst) e mostra o status (verde = limpo, âmbar = presente).
 - **Apps** — lista os apps instalados (sistema + usuário) e permite desativar (`pm disable-user`) ou remover (`pm uninstall`) os selecionados.
+
+## Detecção Multi-Modo
+
+O app detecta automaticamente o modo de conexão do aparelho (a cada 3 segundos):
+
+- **ADB** — Depuração USB ativa: operações completas.
+- **Fastboot** — bootloader: Format Userdata, Reboot, Detectar estado.
+- **MTP** — modo de arquivos (ADB inativo): botão "Reboot Fastboot" (tenta via adb; se falhar, mostra o guia manual para entrar em fastboot).
