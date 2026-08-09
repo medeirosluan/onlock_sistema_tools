@@ -3,6 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useFrp } from "../hooks/useFrp";
 import { useBootloader } from "../hooks/useBootloader";
 import { useBackup } from "../hooks/useBackup";
+import { useFlash } from "../hooks/useFlash";
 import { fastbootGetvar, formatUserdata, fastbootReboot, rebootBootloader } from "../lib/ipc";
 import type { ConnectionMode, DeviceInfo, Platform } from "../types";
 import { OperationGrid } from "./OperationGrid";
@@ -67,6 +68,11 @@ export function DevicePanel({ platform, device, loading, error, mode, connection
     restore,
     cancel,
   } = useBackup();
+  const [flashOpen, setFlashOpen] = useState(false);
+  const [flashUrl, setFlashUrl] = useState("");
+  const [flashPartition, setFlashPartition] = useState("");
+  const [flashConfirmOpen, setFlashConfirmOpen] = useState(false);
+  const { running: flashRunning, progress: flashProgress, result: flashResult, error: flashError, run: flashRun } = useFlash();
 
   const pickFolder = async () => {
     const dir = await open({ directory: true });
@@ -196,6 +202,12 @@ export function DevicePanel({ platform, device, loading, error, mode, connection
             className="rounded border border-border bg-panel p-4 text-sm text-fg hover:bg-border disabled:opacity-50"
           >
             {fastbootDetecting ? "Verificando..." : "Detectar estado"}
+          </button>
+          <button
+            onClick={() => setFlashOpen(true)}
+            className="rounded border border-border bg-panel p-4 text-sm text-fg hover:bg-border"
+          >
+            Flash Firmware
           </button>
         </div>
       )}
@@ -542,6 +554,133 @@ export function DevicePanel({ platform, device, loading, error, mode, connection
           </div>
         </div>
       )}
+      {flashOpen && connectionSerial && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded border border-border bg-panel p-4">
+            <h3 className="text-sm font-semibold text-fg">Flash de Firmware</h3>
+            <p className="mt-2 text-xs text-muted">
+              Dispositivo: <span className="font-mono text-fg">{connectionSerial}</span>
+              {device?.model ? ` (${device.model})` : ""}
+            </p>
+            <label className="mt-3 block text-xs text-muted">URL da ROM</label>
+            <input
+              value={flashUrl}
+              onChange={(e) => setFlashUrl(e.target.value)}
+              placeholder="https://.../rom.zip"
+              className="mt-1 w-full rounded border border-border bg-bg px-2 py-1 text-sm text-fg"
+            />
+            <label className="mt-3 block text-xs text-muted">
+              Partição (opcional — detectada do arquivo se vazio)
+            </label>
+            <input
+              value={flashPartition}
+              onChange={(e) => setFlashPartition(e.target.value)}
+              placeholder="ex: boot, recovery, vbmeta"
+              className="mt-1 w-full rounded border border-border bg-bg px-2 py-1 text-sm text-fg"
+            />
+            {flashError && (
+              <div className="mt-2 rounded border border-log-error/40 bg-log-error/10 px-3 py-2 text-sm text-log-error">
+                {flashError}
+              </div>
+            )}
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setFlashOpen(false)}
+                className="rounded border border-border px-3 py-1.5 text-sm text-fg hover:bg-border"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => setFlashConfirmOpen(true)}
+                disabled={!flashUrl || flashRunning}
+                className="rounded bg-accent-samsung px-3 py-1.5 text-sm text-white hover:opacity-80 disabled:opacity-50"
+              >
+                Continuar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {flashConfirmOpen && connectionSerial && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded border border-border bg-panel p-4">
+            <h3 className="text-sm font-semibold text-fg">Confirmar Flash</h3>
+            <p className="mt-2 text-sm text-log-warn">
+              O flash pode danificar o aparelho se a ROM for incompatível com{" "}
+              <strong>{device?.model || connectionSerial}</strong>.
+            </p>
+            <p className="mt-2 text-xs text-muted">Firmware: <span className="font-mono text-fg">{flashUrl}</span></p>
+            <p className="mt-1 text-xs text-muted">
+              Partição: <span className="font-mono text-fg">{flashPartition || "auto (do arquivo)"}</span>
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setFlashConfirmOpen(false)}
+                className="rounded border border-border px-3 py-1.5 text-sm text-fg hover:bg-border"
+              >
+                Voltar
+              </button>
+              <button
+                onClick={() => {
+                  setFlashConfirmOpen(false);
+                  setFlashOpen(false);
+                  flashRun(connectionSerial, flashUrl, flashPartition || undefined);
+                }}
+                disabled={flashRunning}
+                className="rounded bg-log-error px-3 py-1.5 text-sm text-white hover:opacity-80 disabled:opacity-50"
+              >
+                Confirmar Flash
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {flashRunning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded border border-border bg-panel p-4">
+            <h3 className="text-sm font-semibold text-fg">Flashando...</h3>
+            <div className="mt-3 h-2 w-full overflow-hidden rounded bg-border">
+              <div
+                className="h-full bg-accent-samsung transition-all"
+                style={{ width: `${flashProgress?.percent ?? 0}%` }}
+              />
+            </div>
+            <p className="mt-2 text-sm text-fg">{flashProgress?.message ?? "Preparando..."}</p>
+          </div>
+        </div>
+      )}
+
+      {flashResult && !flashRunning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded border border-border bg-panel p-4">
+            <h3 className="text-sm font-semibold text-fg">
+              {flashResult.success ? "Flash concluído" : "Falha no flash"}
+            </h3>
+            <p className={`mt-2 text-sm ${flashResult.success ? "text-log-ok" : "text-log-error"}`}>
+              {flashResult.message}
+            </p>
+            {flashResult.success && (
+              <button
+                onClick={() => fastbootReboot(connectionSerial ?? "")}
+                className="mt-4 rounded border border-border px-3 py-1.5 text-sm text-fg hover:bg-border"
+              >
+                Reiniciar
+              </button>
+            )}
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => setFlashOpen(false)}
+                className="rounded border border-border px-3 py-1.5 text-sm text-fg hover:bg-border"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {mtpGuideOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
           <div className="w-full max-w-md rounded border border-border bg-panel p-4">
