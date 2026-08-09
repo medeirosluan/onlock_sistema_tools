@@ -1,6 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
 
 use crate::adb_controller::{AdbController, AdbDevice, CancelFlag};
@@ -407,6 +407,115 @@ pub async fn manage_apps(
     })
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum ConnectionMode {
+    Adb,
+    Fastboot,
+    Mtp,
+    None,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct UsbDevice {
+    pub vid: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ConnectionInfo {
+    pub mode: ConnectionMode,
+    pub device: Option<String>,
+    pub serial: Option<String>,
+    pub detail: String,
+}
+
+const CELLULAR_VID: &[&str] = &[
+    "22B8", "18D1", "2717", "04E8", "0E8D", "12D1", "05C6", "1004", "1F0A", "413C", "19D2",
+];
+
+fn classify_connection(
+    adb_output: &str,
+    fastboot_output: &str,
+    usb_devices: &[UsbDevice],
+) -> ConnectionInfo {
+    for line in adb_output.lines() {
+        let fields: Vec<&str> = line.split_whitespace().collect();
+        if fields.len() >= 2 && fields[1] == "device" {
+            return ConnectionInfo {
+                mode: ConnectionMode::Adb,
+                serial: Some(fields[0].to_string()),
+                device: None,
+                detail: format!("ADB: {}", fields[0]),
+            };
+        }
+    }
+
+    let fastboot_serials = parse_fastboot_devices(fastboot_output);
+    if let Some(serial) = fastboot_serials.first() {
+        return ConnectionInfo {
+            mode: ConnectionMode::Fastboot,
+            serial: Some(serial.clone()),
+            device: None,
+            detail: format!("Fastboot: {serial}"),
+        };
+    }
+
+    for device in usb_devices {
+        if CELLULAR_VID.contains(&device.vid.as_str()) {
+            return ConnectionInfo {
+                mode: ConnectionMode::Mtp,
+                serial: None,
+                device: Some(device.name.clone()),
+                detail: format!("MTP: {}", device.name),
+            };
+        }
+    }
+
+    ConnectionInfo {
+        mode: ConnectionMode::None,
+        device: None,
+        serial: None,
+        detail: "Nenhum aparelho detectado".to_string(),
+    }
+}
+
+fn parse_wpd_devices(output: &str) -> Vec<UsbDevice> {
+    let mut devices = Vec::new();
+    let mut current_name = String::new();
+    for line in output.lines() {
+        let line = line.trim();
+        if let Some(name) = line.strip_prefix("FriendlyName:") {
+            current_name = name.trim().to_string();
+        } else if let Some(inst) = line.strip_prefix("InstanceId:") {
+            let inst = inst.trim();
+            let vid = inst
+                .split("VID_")
+                .nth(1)
+                .and_then(|s| s.split('&').next())
+                .unwrap_or_default()
+                .to_string();
+            if !vid.is_empty() {
+                devices.push(UsbDevice {
+                    vid,
+                    name: current_name.clone(),
+                });
+            }
+            current_name.clear();
+        }
+    }
+    devices
+}
+
+fn parse_fastboot_devices(output: &str) -> Vec<String> {
+    output
+        .lines()
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty())
+        .map(|l| l.split_whitespace().next().unwrap_or_default().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
 #[tauri::command]
 pub fn clear_logs(app: AppHandle) -> Result<(), String> {
     app.emit("logs-cleared", ()).map_err(|e| e.to_string())
@@ -480,5 +589,66 @@ mod tests {
         assert!(!parse_boolean("false"));
         assert!(!parse_boolean("0"));
         assert!(!parse_boolean(""));
+    }
+
+    #[test]
+    fn classify_prefers_adb() {
+        let info = classify_connection(
+            "List of devices attached\nRZ8T30A00001\tdevice product:a55x\n",
+            "",
+            &[],
+        );
+        assert_eq!(info.mode, ConnectionMode::Adb);
+        assert_eq!(info.serial.as_deref(), Some("RZ8T30A00001"));
+    }
+
+    #[test]
+    fn classify_fastboot_when_no_adb() {
+        let info = classify_connection("", "ROJNKFZ57XJFD6N7\tfastboot\n", &[]);
+        assert_eq!(info.mode, ConnectionMode::Fastboot);
+        assert_eq!(info.serial.as_deref(), Some("ROJNKFZ57XJFD6N7"));
+    }
+
+    #[test]
+    fn classify_mtp_when_only_usb() {
+        let info = classify_connection(
+            "",
+            "",
+            &[UsbDevice { vid: "22B8".to_string(), name: "motorola one macro".to_string() }],
+        );
+        assert_eq!(info.mode, ConnectionMode::Mtp);
+        assert_eq!(info.device.as_deref(), Some("motorola one macro"));
+    }
+
+    #[test]
+    fn classify_none_when_nothing() {
+        let info = classify_connection("", "", &[]);
+        assert_eq!(info.mode, ConnectionMode::None);
+    }
+
+    #[test]
+    fn classify_ignores_non_cellular_usb() {
+        let info = classify_connection(
+            "",
+            "",
+            &[UsbDevice { vid: "8087".to_string(), name: "Bluetooth".to_string() }],
+        );
+        assert_eq!(info.mode, ConnectionMode::None);
+    }
+
+    #[test]
+    fn parse_wpd_devices_extracts_name_and_vid() {
+        let output = "FriendlyName: motorola one macro\nInstanceId: USB\\VID_22B8&PID_2E82\\ZF523278ZG\nFriendlyName: Dispositivo de Entrada USB\nInstanceId: USB\\VID_8087&PID_0AAA\\5&242A2F40&0&10\n";
+        let devices = parse_wpd_devices(output);
+        assert!(devices.iter().any(|d| d.vid == "22B8" && d.name.contains("motorola")));
+        assert!(devices.iter().any(|d| d.vid == "8087"));
+    }
+
+    #[test]
+    fn parse_fastboot_devices_extracts_serials() {
+        let output = "ROJNKFZ57XJFD6N7\tfastboot\nRZ8T30A00001\tfastboot\n";
+        let serials = parse_fastboot_devices(output);
+        assert!(serials.contains(&"ROJNKFZ57XJFD6N7".to_string()));
+        assert!(serials.contains(&"RZ8T30A00001".to_string()));
     }
 }
