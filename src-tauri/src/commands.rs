@@ -516,6 +516,65 @@ fn parse_fastboot_devices(output: &str) -> Vec<String> {
         .collect()
 }
 
+fn run_powershell(script: &str) -> Result<String, String> {
+    let script_path = std::env::temp_dir().join(format!("onlock_ps_{}.ps1", std::process::id()));
+    std::fs::write(&script_path, script).map_err(|e| format!("Erro ao criar script PowerShell: {e}"))?;
+    let output = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
+        .arg(&script_path)
+        .output();
+    let _ = std::fs::remove_file(&script_path);
+    let output = output.map_err(|e| format!("Erro ao executar PowerShell: {e}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("PowerShell falhou: {}", stderr.trim()));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+fn get_wpd_devices() -> Vec<UsbDevice> {
+    let script = "Get-PnpDevice -PresentOnly -Class WPD -ErrorAction SilentlyContinue | ForEach-Object { 'FriendlyName:' + $_.FriendlyName; 'InstanceId:' + $_.InstanceId }";
+    match run_powershell(script) {
+        Ok(output) => parse_wpd_devices(&output),
+        Err(_) => Vec::new(),
+    }
+}
+
+#[tauri::command]
+pub async fn detect_connection_mode(app: AppHandle) -> Result<ConnectionInfo, String> {
+    let adb_output = AdbController::list_devices(&app)
+        .await
+        .map_err(|e| format!("Falha ao verificar ADB: {e}"))?;
+    let adb_text = adb_output
+        .iter()
+        .map(|d| format!("{}\t{}", d.serial, d.state))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let fastboot_text = AdbController::fastboot(&app, "", &["devices"])
+        .await
+        .unwrap_or_default();
+
+    let usb_devices = get_wpd_devices();
+
+    let info = classify_connection(&adb_text, &fastboot_text, &usb_devices);
+    match info.mode {
+        ConnectionMode::Adb => {
+            emit_log(&app, "info", &format!("Modo ADB: {:?}", info.serial));
+        }
+        ConnectionMode::Fastboot => {
+            emit_log(&app, "info", &format!("Modo Fastboot: {:?}", info.serial));
+        }
+        ConnectionMode::Mtp => {
+            emit_log(&app, "warn", &format!("Modo MTP: {:?}", info.device));
+        }
+        ConnectionMode::None => {
+            emit_log(&app, "info", "Nenhum aparelho detectado.");
+        }
+    }
+    Ok(info)
+}
+
 #[tauri::command]
 pub fn clear_logs(app: AppHandle) -> Result<(), String> {
     app.emit("logs-cleared", ()).map_err(|e| e.to_string())
