@@ -127,3 +127,15 @@ O app detecta automaticamente o modo de conexão do aparelho (a cada 3 segundos)
 - **ADB** — Depuração USB ativa: operações completas.
 - **Fastboot** — bootloader: Format Userdata, Reboot, Detectar estado.
 - **MTP** — modo de arquivos (ADB inativo): botão "Reboot Fastboot" (tenta via adb; se falhar, mostra o guia manual para entrar em fastboot).
+
+## Flash de Firmware
+
+No painel Fastboot, o botão **Flash Firmware** permite baixar e flashar firmware:
+
+1. O app pré-preenche o modelo do aparelho.
+2. Informe a URL da ROM (um arquivo `.img` ou ZIP de firmware fastboot).
+3. Opcionalmente informe a partição (ex: boot, recovery, vbmeta) — se vazio, é detectada do arquivo.
+4. Confirme a operação (aviso de incompatibilidade + partições).
+5. Acompanhe o progresso e, ao final, reinicie o aparelho.
+
+O flash para na primeira falha de partição (evita brick). O download é feito para uma pasta temporária e removido ao final.
