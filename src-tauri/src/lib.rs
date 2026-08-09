@@ -34,7 +34,8 @@ pub fn run() {
             commands::check_frp_status,
             commands::list_apps,
             commands::manage_apps,
-            commands::detect_connection_mode
+            commands::detect_connection_mode,
+            commands::flash_firmware
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

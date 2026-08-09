@@ -6,6 +6,7 @@ use tauri::{AppHandle, Emitter, State};
 use crate::adb_controller::{AdbController, AdbDevice, CancelFlag};
 use crate::adb_simulator::{AdbSimulator, DeviceInfo};
 use crate::backup::{BackupManager, BackupResult};
+use crate::flashing::{flash_from_url, FlashResult};
 use crate::operations::{BootloaderResult, BootloaderUnlocker, FrpRemover, FrpResult};
 
 #[derive(Debug, Clone, Serialize)]
@@ -591,6 +592,17 @@ pub fn clear_logs(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
+}
+
+#[tauri::command]
+pub async fn flash_firmware(
+    app: AppHandle,
+    serial: String,
+    url: String,
+    partition: Option<String>,
+) -> Result<FlashResult, String> {
+    emit_log(&app, "info", &format!("Iniciando flash de {serial} a partir de {url}..."));
+    flash_from_url(&app, &serial, &url, partition).await
 }
 
 #[cfg(test)]

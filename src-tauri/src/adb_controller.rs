@@ -81,6 +81,16 @@ impl AdbController {
         Ok(())
     }
 
+    pub async fn fastboot_flash(app: &AppHandle, serial: &str, partition: &str, local_path: &str) -> Result<(), String> {
+        Self::run_fastboot_timeout(
+            app,
+            &["-s", serial, "flash", partition, local_path],
+            Duration::from_secs(300),
+        )
+        .await?;
+        Ok(())
+    }
+
     pub async fn fastboot_devices(app: &AppHandle) -> Result<String, String> {
         Self::run_fastboot(app, &["devices"]).await
     }
