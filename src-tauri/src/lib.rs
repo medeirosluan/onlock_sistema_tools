@@ -2,6 +2,7 @@ mod adb_controller;
 mod adb_simulator;
 mod backup;
 mod commands;
+mod flashing;
 mod operations;
 
 use adb_controller::CancelFlag;
