@@ -115,8 +115,7 @@ O status do topo (dispositivos conectados) é atualizado automaticamente a cada 
 
 ## Preparação de Revenda
 
-O grid de operações inclui 3 botões para preparar aparelhos para revenda:
+O grid de operações inclui 2 botões para preparar aparelhos para revenda:
 
 - **Check FRP** — verifica se o FRP está limpo (ro.frp.pst) e mostra o status (verde = limpo, âmbar = presente).
 - **Apps** — lista os apps instalados (sistema + usuário) e permite desativar (`pm disable-user`) ou remover (`pm uninstall`) os selecionados.
-- **Ficha Saúde** — mostra modelo, IMEI, Android, build, armazenamento, bateria e status FRP.

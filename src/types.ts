@@ -93,14 +93,3 @@ export interface ManageAppsResult {
   failed: string[];
   message: string;
 }
-
-export interface DeviceHealth {
-  model: string;
-  imei: string;
-  android_version: string;
-  build: string;
-  total_storage: string;
-  free_storage: string;
-  battery: number;
-  frp_blocked: boolean;
-}

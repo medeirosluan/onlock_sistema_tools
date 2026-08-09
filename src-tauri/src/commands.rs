@@ -58,18 +58,6 @@ pub struct ManageAppsResult {
     pub message: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct DeviceHealth {
-    pub model: String,
-    pub imei: String,
-    pub android_version: String,
-    pub build: String,
-    pub total_storage: String,
-    pub free_storage: String,
-    pub battery: u8,
-    pub frp_blocked: bool,
-}
-
 fn parse_apps(output: &str) -> Vec<AppInfo> {
     let mut apps: Vec<AppInfo> = Vec::new();
     let mut system = false;
@@ -417,62 +405,6 @@ pub async fn manage_apps(
         failed,
         message: format!("{action}: {processed} processados, {failed_count} falhas"),
     })
-}
-
-#[tauri::command]
-pub async fn device_health(app: AppHandle, serial: String) -> Result<DeviceHealth, String> {
-    let model = AdbController::getprop(&app, &serial, "ro.product.model")
-        .await
-        .map_err(|e| {
-            emit_log(&app, "error", &format!("Falha ao ler modelo: {e}"));
-            format!("Falha ao gerar ficha de saúde em {serial}: {e}")
-        })?;
-    let android_version = AdbController::getprop(&app, &serial, "ro.build.version.release")
-        .await
-        .unwrap_or_default();
-    let build = AdbController::getprop(&app, &serial, "ro.build.display.id")
-        .await
-        .unwrap_or_default();
-    let imei = AdbController::imei(&app, &serial)
-        .await
-        .unwrap_or(None)
-        .unwrap_or_default();
-    let battery = AdbController::battery_level(&app, &serial)
-        .await
-        .unwrap_or(None)
-        .unwrap_or(0);
-    let frp_value = AdbController::getprop(&app, &serial, "ro.frp.pst")
-        .await
-        .unwrap_or_default();
-    let df = AdbController::run_shell(&app, &serial, &["df", "-h", "/data"])
-        .await
-        .map_err(|e| {
-            emit_log(&app, "error", &format!("Falha ao ler armazenamento: {e}"));
-            format!("Falha ao gerar ficha de saúde em {serial}: {e}")
-        })?;
-
-    let (total_storage, free_storage) = parse_df(&df);
-
-    Ok(DeviceHealth {
-        model,
-        imei,
-        android_version,
-        build,
-        total_storage,
-        free_storage,
-        battery,
-        frp_blocked: parse_frp_pst(&frp_value),
-    })
-}
-
-fn parse_df(output: &str) -> (String, String) {
-    for line in output.lines().skip(1) {
-        let fields: Vec<&str> = line.split_whitespace().collect();
-        if fields.len() >= 4 {
-            return (fields[1].to_string(), fields[3].to_string());
-        }
-    }
-    (String::new(), String::new())
 }
 
 #[tauri::command]

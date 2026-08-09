@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { AdbDevice, AdbStatus, AppInfo, BackupCategory, BackupProgress, BackupResult, BootloaderResult, DeviceHealth, DeviceInfo, FormatResult, FrpResult, FrpStatus, LogEntry, ManageAppsResult } from "../types";
+import type { AdbDevice, AdbStatus, AppInfo, BackupCategory, BackupProgress, BackupResult, BootloaderResult, DeviceInfo, FormatResult, FrpResult, FrpStatus, LogEntry, ManageAppsResult } from "../types";
 
 export const detectDevice = (serial: string, platform: string): Promise<DeviceInfo> =>
   invoke<DeviceInfo>("detect_device", { serial, platform });
@@ -68,6 +68,3 @@ export const manageApps = (
   packages: string[],
   action: "disable" | "uninstall",
 ): Promise<ManageAppsResult> => invoke<ManageAppsResult>("manage_apps", { serial, packages, action });
-
-export const deviceHealth = (serial: string): Promise<DeviceHealth> =>
-  invoke<DeviceHealth>("device_health", { serial });

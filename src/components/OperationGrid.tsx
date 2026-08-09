@@ -30,13 +30,11 @@ export function OperationGrid({ platform, serial, onReadInfo, onEraseFrp }: Prop
   const {
     frpStatus,
     apps,
-    health,
     loading: resaleLoading,
     error: resaleError,
     checkFrp,
     listApps: listAppsAction,
     manageApps: manageAppsAction,
-    getHealth,
   } = useResale();
 
   const toggleApp = (pkg: string) => {
@@ -108,29 +106,6 @@ export function OperationGrid({ platform, serial, onReadInfo, onEraseFrp }: Prop
           {frpStatus.message}
         </div>
       )}
-      {health && (
-        <div className="rounded border border-border bg-panel p-3">
-          <h4 className="text-sm font-semibold text-fg">Ficha de Saúde</h4>
-          <dl className="mt-2 grid grid-cols-2 gap-1 text-xs">
-            <dt className="text-muted">Modelo</dt>
-            <dd className="text-fg">{health.model || "—"}</dd>
-            <dt className="text-muted">IMEI</dt>
-            <dd className="text-fg">{health.imei || "—"}</dd>
-            <dt className="text-muted">Android</dt>
-            <dd className="text-fg">{health.android_version || "—"}</dd>
-            <dt className="text-muted">Build</dt>
-            <dd className="text-fg">{health.build || "—"}</dd>
-            <dt className="text-muted">Armazenamento total</dt>
-            <dd className="text-fg">{health.total_storage || "—"}</dd>
-            <dt className="text-muted">Livre</dt>
-            <dd className="text-fg">{health.free_storage || "—"}</dd>
-            <dt className="text-muted">Bateria</dt>
-            <dd className="text-fg">{health.battery}%</dd>
-            <dt className="text-muted">FRP</dt>
-            <dd className="text-fg">{health.frp_blocked ? "presente" : "limpo"}</dd>
-          </dl>
-        </div>
-      )}
       <button onClick={onReadInfo} disabled={busy} className={buttonClass}>
         <span className={ACCENT[platform]}>Read Info</span>
       </button>
@@ -148,9 +123,6 @@ export function OperationGrid({ platform, serial, onReadInfo, onEraseFrp }: Prop
       </button>
       <button onClick={openApps} disabled={busy} className={buttonClass}>
         <span className={ACCENT[platform]}>{resaleLoading ? "Consultando..." : "Apps"}</span>
-      </button>
-      <button onClick={() => getHealth(serial)} disabled={busy} className={buttonClass}>
-        <span className={ACCENT[platform]}>{resaleLoading ? "Consultando..." : "Ficha Saúde"}</span>
       </button>
 
       {rebootOpen && (
